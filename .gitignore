@@ -1,0 +1,11 @@
+leetcli
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+bin/
+dist/
+.idea/
+.vscode/
+.DS_Store
