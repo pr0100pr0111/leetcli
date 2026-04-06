@@ -2,33 +2,62 @@ package ui
 
 import (
 	"context"
+	"leetcli/internal/config"
 	"leetcli/internal/domain"
 	"leetcli/internal/service"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/bubbles/spinner"
 )
 
+type Panel int
+
+const (
+	PanelDifficulty Panel = iota
+	PanelLanguages
+	PanelSkills
+	PanelContests
+	PanelCount
+)
+
 type Model struct {
-	service *service.ProfileService
-	profile domain.Profile
-	err     error
-	width   int
+	service       *service.ProfileService
+	profile       domain.Profile
+	err           error
+	width         int
+	height        int
 
-	spinner spinner.Model
-	loading bool
+	spinner       spinner.Model
+	loading       bool
 
-	theme Theme
+	theme         Theme
+	themeIndex    int
+	activePanel   Panel
+	showHelp      bool
+	config        config.Config
 }
 
-func NewModel(s *service.ProfileService) Model {
+func NewModel(s *service.ProfileService, cfg config.Config) Model {
 	sp := spinner.New()
 	sp.Spinner = spinner.Dot
 
+	theme := GetTheme(cfg.Theme)
+	themeIndex := 0
+	for i, t := range Themes {
+		if t.Name == cfg.Theme {
+			themeIndex = i
+			break
+		}
+	}
+
 	return Model{
-		service: s,
-		spinner: sp,
-		loading: true,
-		theme:   DefaultTheme(),
+		service:     s,
+		spinner:     sp,
+		loading:     true,
+		theme:       theme,
+		themeIndex:  themeIndex,
+		activePanel: PanelDifficulty,
+		showHelp:    true,
+		config:      cfg,
 	}
 }
 
@@ -49,11 +78,12 @@ type profileMsg struct {
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
-
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
+		m.height = msg.Height
 
 	case profileMsg:
 		m.loading = false
@@ -63,15 +93,30 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "q":
+		case "q", "ctrl+c":
 			return m, tea.Quit
 		case "r":
 			m.loading = true
-			return m, m.fetch()
+			cmds = append(cmds, m.fetch())
+		case "t":
+			m.themeIndex = (m.themeIndex + 1) % len(Themes)
+			m.theme = Themes[m.themeIndex]
+		case "tab", "right":
+			m.activePanel = (m.activePanel + 1) % PanelCount
+		case "shift+tab", "left":
+			m.activePanel = (m.activePanel - 1 + PanelCount) % PanelCount
+		case "h", "?":
+			m.showHelp = !m.showHelp
 		}
 	}
 
 	var cmd tea.Cmd
 	m.spinner, cmd = m.spinner.Update(msg)
-	return m, cmd
+	cmds = append(cmds, cmd)
+	return m, tea.Batch(cmds...)
+}
+
+func (m Model) nextTheme() Theme {
+	m.themeIndex = (m.themeIndex + 1) % len(Themes)
+	return Themes[m.themeIndex]
 }

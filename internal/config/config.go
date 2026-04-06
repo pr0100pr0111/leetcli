@@ -9,6 +9,7 @@ import (
 type Config struct {
 	Username        string `yaml:"username"`
 	RefreshInterval int    `yaml:"refresh_interval"`
+	Theme           string `yaml:"theme"`
 }
 
 func Load() (Config, error) {
@@ -30,6 +31,9 @@ func Load() (Config, error) {
 
 	if cfg.RefreshInterval == 0 {
 		cfg.RefreshInterval = 300
+	}
+	if cfg.Theme == "" {
+		cfg.Theme = "default"
 	}
 
 	return cfg, nil

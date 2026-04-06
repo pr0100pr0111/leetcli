@@ -21,7 +21,7 @@ func main() {
 	client := api.NewClient()
 	service := service.NewProfileService(client, cfg.Username)
 
-	model := ui.NewModel(service)
+	model := ui.NewModel(service, cfg)
 
 	p := tea.NewProgram(model, tea.WithAltScreen())
 

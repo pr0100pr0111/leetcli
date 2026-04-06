@@ -1,0 +1,3 @@
+username: your_leetcode_username
+refresh_interval: 300
+theme: dracula  # default, dracula, nord, tokyo-night, catppuccin

@@ -4,12 +4,15 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"time"
 )
 
 const endpoint = "https://leetcode.com/graphql"
+
+var ErrNetwork = errors.New("network error")
 
 type Client struct {
 	http *http.Client
@@ -30,6 +33,7 @@ func (c *Client) FetchProfile(ctx context.Context, username string) ([]byte, err
 	    profile {
 	      ranking
 	      reputation
+	      userSlug
 	    }
 	    submitStats {
 	      acSubmissionNum {
@@ -40,6 +44,20 @@ func (c *Client) FetchProfile(ctx context.Context, username string) ([]byte, err
 	    languageProblemCount {
 	      languageName
 	      problemsSolved
+	    }
+	    tagProblemCounts {
+	      advanced {
+	        tagName
+	        problemsSolved
+	      }
+	      intermediate {
+	        tagName
+	        problemsSolved
+	      }
+	      fundamental {
+	        tagName
+	        problemsSolved
+	      }
 	    }
 	  }
 	}`

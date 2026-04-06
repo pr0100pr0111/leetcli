@@ -3,9 +3,9 @@ package service
 import (
 	"context"
 	"encoding/json"
-	"sort"
 	"leetcli/internal/api"
 	"leetcli/internal/domain"
+	"sort"
 )
 
 type ProfileService struct {
@@ -29,8 +29,9 @@ func (s *ProfileService) GetProfile(ctx context.Context) (domain.Profile, error)
 			MatchedUser struct {
 				Username string `json:"username"`
 				Profile  struct {
-					Ranking    int `json:"ranking"`
-					Reputation int `json:"reputation"`
+					Ranking    int    `json:"ranking"`
+					Reputation int    `json:"reputation"`
+					UserSlug   string `json:"userSlug"`
 				} `json:"profile"`
 				SubmitStats struct {
 					AC []struct {
@@ -42,6 +43,20 @@ func (s *ProfileService) GetProfile(ctx context.Context) (domain.Profile, error)
 					Name  string `json:"languageName"`
 					Count int    `json:"problemsSolved"`
 				} `json:"languageProblemCount"`
+				TagProblemCounts struct {
+					Advanced []struct {
+						TagName        string `json:"tagName"`
+						ProblemsSolved int    `json:"problemsSolved"`
+					} `json:"advanced"`
+					Intermediate []struct {
+						TagName        string `json:"tagName"`
+						ProblemsSolved int    `json:"problemsSolved"`
+					} `json:"intermediate"`
+					Fundamental []struct {
+						TagName        string `json:"tagName"`
+						ProblemsSolved int    `json:"problemsSolved"`
+					} `json:"fundamental"`
+				} `json:"tagProblemCounts"`
 			} `json:"matchedUser"`
 		} `json:"data"`
 	}
@@ -78,6 +93,25 @@ func (s *ProfileService) GetProfile(ctx context.Context) (domain.Profile, error)
 
 	sort.Slice(profile.Languages, func(i, j int) bool {
 		return profile.Languages[i].Count > profile.Languages[j].Count
+	})
+
+	skillMap := make(map[string]int)
+	for _, s := range user.TagProblemCounts.Advanced {
+		skillMap[s.TagName] += s.ProblemsSolved
+	}
+	for _, s := range user.TagProblemCounts.Intermediate {
+		skillMap[s.TagName] += s.ProblemsSolved
+	}
+	for _, s := range user.TagProblemCounts.Fundamental {
+		skillMap[s.TagName] += s.ProblemsSolved
+	}
+
+	for name, count := range skillMap {
+		profile.Skills = append(profile.Skills, domain.Skill{Name: name, Count: count})
+	}
+
+	sort.Slice(profile.Skills, func(i, j int) bool {
+		return profile.Skills[i].Count > profile.Skills[j].Count
 	})
 
 	return profile, nil
