@@ -16,7 +16,31 @@ func (m Model) View() string {
 		return m.theme.Muted.Render(fmt.Sprintf("Error: %v", m.err))
 	}
 
-	barWidth := min(40, m.width-20)
+	const minBarWidth = 20
+	const comfortableBarWidth = 35
+	const panelOverhead = 4
+	const gapWidth = 4
+
+	minContentPerPanel := minBarWidth + 29
+	comfortableContentPerPanel := comfortableBarWidth + 29
+
+	minHorizontalWidth := 3*minContentPerPanel + 3*panelOverhead + gapWidth
+	comfortableHorizontalWidth := 3*comfortableContentPerPanel + 3*panelOverhead + gapWidth
+
+	useHorizontal := m.width >= comfortableHorizontalWidth
+	if m.width >= minHorizontalWidth && m.width < comfortableHorizontalWidth {
+		useHorizontal = true
+	}
+
+	availableForBars := m.width - 3*panelOverhead - gapWidth - 3*29
+	barWidth := availableForBars / 3
+	if barWidth > 50 {
+		barWidth = 50
+	}
+	if barWidth < minBarWidth {
+		barWidth = minBarWidth
+		useHorizontal = false
+	}
 
 	header := m.theme.Title.Render(
 		fmt.Sprintf("LeetCode Dashboard • %s", m.profile.Username),
@@ -30,11 +54,33 @@ func (m Model) View() string {
 		m.profile.Streak,
 	)
 
-	diff := m.renderPanel("📊 Difficulty", renderDifficulty(m, barWidth), PanelDifficulty)
-	langs := m.renderPanel("💻 Languages", renderLanguages(m, barWidth), PanelLanguages)
-	skills := m.renderPanel("🏷️  Skills", renderSkills(m, barWidth), PanelSkills)
+	diffContent := renderDifficulty(m, barWidth)
+	langsContent := renderLanguages(m, barWidth)
+	skillsContent := renderSkills(m, barWidth)
 
-	panels := lipgloss.JoinHorizontal(lipgloss.Top, diff, "  ", langs, "  ", skills)
+	var panels string
+	if useHorizontal {
+		diff := m.renderPanel("📊 Difficulty", diffContent, PanelDifficulty)
+		langs := m.renderPanel("💻 Languages", langsContent, PanelLanguages)
+		skills := m.renderPanel("🏷️  Skills", skillsContent, PanelSkills)
+		panels = lipgloss.JoinHorizontal(lipgloss.Top, diff, "  ", langs, "  ", skills)
+	} else {
+		fullBarWidth := m.width - panelOverhead - 29
+		if fullBarWidth > 60 {
+			fullBarWidth = 60
+		}
+		if fullBarWidth < minBarWidth {
+			fullBarWidth = minBarWidth
+		}
+		diffContent = renderDifficulty(m, fullBarWidth)
+		langsContent = renderLanguages(m, fullBarWidth)
+		skillsContent = renderSkills(m, fullBarWidth)
+
+		diff := m.renderPanel("📊 Difficulty", diffContent, PanelDifficulty)
+		langs := m.renderPanel("💻 Languages", langsContent, PanelLanguages)
+		skills := m.renderPanel("🏷️  Skills", skillsContent, PanelSkills)
+		panels = lipgloss.JoinVertical(lipgloss.Left, diff, "", langs, "", skills)
+	}
 
 	help := ""
 	if m.showHelp {
@@ -105,8 +151,12 @@ func renderLanguages(m Model, width int) string {
 	}
 
 	var lines []string
+	maxItems := 8
+	if width < 30 {
+		maxItems = 5
+	}
 	for i, l := range m.profile.Languages {
-		if i >= 8 {
+		if i >= maxItems {
 			break
 		}
 		ratio := float64(l.Count) / max
@@ -127,8 +177,12 @@ func renderSkills(m Model, width int) string {
 	}
 
 	var lines []string
+	maxItems := 8
+	if width < 30 {
+		maxItems = 5
+	}
 	for i, s := range m.profile.Skills {
-		if i >= 8 {
+		if i >= maxItems {
 			break
 		}
 		ratio := float64(s.Count) / max
@@ -146,7 +200,11 @@ func renderBar(label string, value int, total float64, width int, style lipgloss
 		strings.Repeat("░", width-filled)
 
 	pct := fmt.Sprintf("%.0f%%", ratio*100)
-	return fmt.Sprintf("%-8s %s %5s %d", label, bar, pct, value)
+	labelWidth := 8
+	if width < 25 {
+		labelWidth = 5
+	}
+	return fmt.Sprintf("%-*s %s %5s %d", labelWidth, label, bar, pct, value)
 }
 
 func renderCustomBar(label string, ratio float64, width int) string {
@@ -154,7 +212,11 @@ func renderCustomBar(label string, ratio float64, width int) string {
 	bar := strings.Repeat("█", filled) +
 		strings.Repeat("░", width-filled)
 	pct := fmt.Sprintf("%.0f%%", ratio*100)
-	return fmt.Sprintf("%-14s %s %s", label, bar, pct)
+	labelWidth := 14
+	if width < 30 {
+		labelWidth = 10
+	}
+	return fmt.Sprintf("%-*s %s %s", labelWidth, label, bar, pct)
 }
 
 func min(a, b int) int {
