@@ -2,11 +2,11 @@ package ui
 
 import (
 	"context"
+	"github.com/charmbracelet/bubbles/spinner"
+	tea "github.com/charmbracelet/bubbletea"
 	"leetcli/internal/config"
 	"leetcli/internal/domain"
 	"leetcli/internal/service"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/bubbles/spinner"
 )
 
 type Panel int
@@ -19,21 +19,31 @@ const (
 	PanelCount
 )
 
+type DetailView int
+
+const (
+	DetailNone DetailView = iota
+	DetailDifficulty
+	DetailLanguages
+	DetailSkills
+)
+
 type Model struct {
-	service       *service.ProfileService
-	profile       domain.Profile
-	err           error
-	width         int
-	height        int
+	service *service.ProfileService
+	profile domain.Profile
+	err     error
+	width   int
+	height  int
 
-	spinner       spinner.Model
-	loading       bool
+	spinner spinner.Model
+	loading bool
 
-	theme         Theme
-	themeIndex    int
-	activePanel   Panel
-	showHelp      bool
-	config        config.Config
+	theme       Theme
+	themeIndex  int
+	activePanel Panel
+	detailView  DetailView
+	showHelp    bool
+	config      config.Config
 }
 
 func NewModel(s *service.ProfileService, cfg config.Config) Model {
@@ -56,6 +66,7 @@ func NewModel(s *service.ProfileService, cfg config.Config) Model {
 		theme:       theme,
 		themeIndex:  themeIndex,
 		activePanel: PanelDifficulty,
+		detailView:  DetailNone,
 		showHelp:    true,
 		config:      cfg,
 	}
@@ -94,6 +105,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "q", "ctrl+c":
+			if m.detailView != DetailNone {
+				m.detailView = DetailNone
+				return m, nil
+			}
 			return m, tea.Quit
 		case "r":
 			m.loading = true
@@ -102,9 +117,28 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.themeIndex = (m.themeIndex + 1) % len(Themes)
 			m.theme = Themes[m.themeIndex]
 		case "tab", "right":
-			m.activePanel = (m.activePanel + 1) % PanelCount
+			if m.detailView == DetailNone {
+				m.activePanel = (m.activePanel + 1) % PanelCount
+			}
 		case "shift+tab", "left":
-			m.activePanel = (m.activePanel - 1 + PanelCount) % PanelCount
+			if m.detailView == DetailNone {
+				m.activePanel = (m.activePanel - 1 + PanelCount) % PanelCount
+			}
+		case "enter":
+			if m.detailView == DetailNone {
+				switch m.activePanel {
+				case PanelDifficulty:
+					m.detailView = DetailDifficulty
+				case PanelLanguages:
+					m.detailView = DetailLanguages
+				case PanelSkills:
+					m.detailView = DetailSkills
+				}
+			} else {
+				m.detailView = DetailNone
+			}
+		case "esc":
+			m.detailView = DetailNone
 		case "h", "?":
 			m.showHelp = !m.showHelp
 		}

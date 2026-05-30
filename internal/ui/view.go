@@ -5,7 +5,31 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/reflow/truncate"
 )
+
+func fit(s string, width int) string {
+	if width <= 0 {
+		return s
+	}
+	lines := strings.Split(s, "\n")
+	for i, line := range lines {
+		if lipgloss.Width(line) > width {
+			lines[i] = truncate.String(line, uint(width))
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+func clamp(v, lo, hi int) int {
+	if v < lo {
+		return lo
+	}
+	if v > hi {
+		return hi
+	}
+	return v
+}
 
 func (m Model) View() string {
 	if m.loading {
@@ -13,34 +37,36 @@ func (m Model) View() string {
 	}
 
 	if m.err != nil {
-		return m.theme.Muted.Render(fmt.Sprintf("Error: %v", m.err))
+		return fit(m.theme.Muted.Render(fmt.Sprintf("Error: %v", m.err)), m.width)
 	}
 
-	const minBarWidth = 20
-	const comfortableBarWidth = 35
-	const panelOverhead = 4
-	const gapWidth = 4
-
-	minContentPerPanel := minBarWidth + 29
-	comfortableContentPerPanel := comfortableBarWidth + 29
-
-	minHorizontalWidth := 3*minContentPerPanel + 3*panelOverhead + gapWidth
-	comfortableHorizontalWidth := 3*comfortableContentPerPanel + 3*panelOverhead + gapWidth
-
-	useHorizontal := m.width >= comfortableHorizontalWidth
-	if m.width >= minHorizontalWidth && m.width < comfortableHorizontalWidth {
-		useHorizontal = true
+	if m.detailView != DetailNone {
+		return fit(m.renderDetailView(), m.width)
 	}
 
-	availableForBars := m.width - 3*panelOverhead - gapWidth - 3*29
-	barWidth := availableForBars / 3
-	if barWidth > 50 {
-		barWidth = 50
+	width := m.width
+	if width <= 0 {
+		width = 80
 	}
-	if barWidth < minBarWidth {
-		barWidth = minBarWidth
-		useHorizontal = false
+	height := m.height
+	if height <= 0 {
+		height = 24
 	}
+
+	useHorizontal := width >= 145
+
+	var barWidth int
+	var maxItems int
+	if useHorizontal {
+		barWidth = (width - 97) / 3
+		maxItems = clamp(height-10, 3, 8)
+	} else {
+		barWidth = width - 35
+		maxItems = clamp((height-20)/2, 3, 8)
+	}
+	barWidth = clamp(barWidth, 15, 60)
+
+	total := m.profile.Difficulty.Total
 
 	header := m.theme.Title.Render(
 		fmt.Sprintf("LeetCode Dashboard • %s", m.profile.Username),
@@ -55,39 +81,26 @@ func (m Model) View() string {
 	)
 
 	diffContent := renderDifficulty(m, barWidth)
-	langsContent := renderLanguages(m, barWidth)
-	skillsContent := renderSkills(m, barWidth)
+	langsContent := renderLanguages(m, barWidth, total, maxItems)
+	skillsContent := renderSkills(m, barWidth, total, maxItems)
+
+	diff := m.renderPanel("📊 Difficulty", diffContent, PanelDifficulty)
+	langs := m.renderPanel("💻 Languages", langsContent, PanelLanguages)
+	skills := m.renderPanel("🏷️  Skills", skillsContent, PanelSkills)
 
 	var panels string
 	if useHorizontal {
-		diff := m.renderPanel("📊 Difficulty", diffContent, PanelDifficulty)
-		langs := m.renderPanel("💻 Languages", langsContent, PanelLanguages)
-		skills := m.renderPanel("🏷️  Skills", skillsContent, PanelSkills)
 		panels = lipgloss.JoinHorizontal(lipgloss.Top, diff, "  ", langs, "  ", skills)
 	} else {
-		fullBarWidth := m.width - panelOverhead - 29
-		if fullBarWidth > 60 {
-			fullBarWidth = 60
-		}
-		if fullBarWidth < minBarWidth {
-			fullBarWidth = minBarWidth
-		}
-		diffContent = renderDifficulty(m, fullBarWidth)
-		langsContent = renderLanguages(m, fullBarWidth)
-		skillsContent = renderSkills(m, fullBarWidth)
-
-		diff := m.renderPanel("📊 Difficulty", diffContent, PanelDifficulty)
-		langs := m.renderPanel("💻 Languages", langsContent, PanelLanguages)
-		skills := m.renderPanel("🏷️  Skills", skillsContent, PanelSkills)
 		panels = lipgloss.JoinVertical(lipgloss.Left, diff, "", langs, "", skills)
 	}
 
 	help := ""
 	if m.showHelp {
-		help = m.theme.Muted.Render("[r] refresh  [t] theme  [tab/←→] panel  [h] help  [q] quit")
+		help = m.theme.Muted.Render("[r] refresh  [t] theme  [tab/←→] panel  [enter] detail  [h] hide  [q] quit")
 	}
 
-	return lipgloss.JoinVertical(
+	frame := lipgloss.JoinVertical(
 		lipgloss.Left,
 		header,
 		themeBadge,
@@ -97,33 +110,204 @@ func (m Model) View() string {
 		"",
 		help,
 	)
+
+	return fit(frame, width)
+}
+
+func (m Model) renderDetailView() string {
+	switch m.detailView {
+	case DetailDifficulty:
+		return m.renderDetailDifficulty()
+	case DetailLanguages:
+		return m.renderDetailLanguages()
+	case DetailSkills:
+		return m.renderDetailSkills()
+	default:
+		return ""
+	}
+}
+
+func (m Model) renderDetailDifficulty() string {
+	total := float64(m.profile.Difficulty.Total)
+	if total == 0 {
+		return m.centered("No data")
+	}
+
+	leetcodeTotals := m.profile.LeetCodeTotals
+	if leetcodeTotals.Easy == 0 && leetcodeTotals.Medium == 0 && leetcodeTotals.Hard == 0 {
+		leetcodeTotals.Easy = 800
+		leetcodeTotals.Medium = 1600
+		leetcodeTotals.Hard = 700
+	}
+	leetcodeTotal := leetcodeTotals.Easy + leetcodeTotals.Medium + leetcodeTotals.Hard
+
+	easyPct := float64(m.profile.Difficulty.Easy) / float64(leetcodeTotals.Easy) * 100
+	mediumPct := float64(m.profile.Difficulty.Medium) / float64(leetcodeTotals.Medium) * 100
+	hardPct := float64(m.profile.Difficulty.Hard) / float64(leetcodeTotals.Hard) * 100
+
+	solved := m.profile.Difficulty.Easy + m.profile.Difficulty.Medium + m.profile.Difficulty.Hard
+	totalPct := float64(solved) / float64(leetcodeTotal) * 100
+
+	barWidth := clamp(m.width-30, 15, 60)
+
+	title := m.theme.Title.Render("📊 Difficulty Breakdown")
+	backHint := m.theme.Muted.Render("[enter/esc] back  [esc] close")
+
+	rows := []string{
+		renderDetailBar("Easy", m.profile.Difficulty.Easy, leetcodeTotals.Easy, easyPct, barWidth, m.theme.Easy),
+		renderDetailBar("Medium", m.profile.Difficulty.Medium, leetcodeTotals.Medium, mediumPct, barWidth, m.theme.Medium),
+		renderDetailBar("Hard", m.profile.Difficulty.Hard, leetcodeTotals.Hard, hardPct, barWidth, m.theme.Hard),
+		"",
+		renderDetailBar("Total", solved, leetcodeTotal, totalPct, barWidth, m.theme.Title),
+	}
+
+	stats := fmt.Sprintf(
+		"Easy: %d/%d (%.1f%%)   Medium: %d/%d (%.1f%%)   Hard: %d/%d (%.1f%%)",
+		m.profile.Difficulty.Easy, leetcodeTotals.Easy, easyPct,
+		m.profile.Difficulty.Medium, leetcodeTotals.Medium, mediumPct,
+		m.profile.Difficulty.Hard, leetcodeTotals.Hard, hardPct,
+	)
+	statsLine := m.theme.Muted.Render(stats)
+
+	content := lipgloss.JoinVertical(lipgloss.Left, rows...)
+	content = lipgloss.JoinVertical(lipgloss.Left, content, "", statsLine)
+
+	panelWidth := clamp(m.width-4, 40, 200)
+	panel := m.theme.panelStyle(panelWidth, true).
+		Render(fit(content, panelWidth-6))
+
+	return lipgloss.JoinVertical(lipgloss.Center, "", title, "", panel, "", backHint)
+}
+
+func (m Model) renderDetailLanguages() string {
+	if len(m.profile.Languages) == 0 {
+		return m.centered("No data")
+	}
+
+	total := m.profile.Difficulty.Total
+	if total == 0 {
+		return m.centered("No data")
+	}
+
+	title := m.theme.Title.Render("💻 Languages Breakdown")
+	backHint := m.theme.Muted.Render("[enter/esc] back  [esc] close")
+
+	barWidth := clamp(m.width-40, 15, 70)
+	maxItems := clamp(m.height-14, 3, 20)
+
+	var rows []string
+	for i, l := range m.profile.Languages {
+		if i >= maxItems {
+			break
+		}
+		ratio := float64(l.Count) / float64(total) * 100
+		rows = append(rows, renderDetailLangBar(l.Name, l.Count, ratio, barWidth))
+	}
+
+	content := lipgloss.JoinVertical(lipgloss.Left, rows...)
+
+	top3 := len(m.profile.Languages)
+	if top3 > 3 {
+		top3 = 3
+	}
+	topLangs := make([]string, top3)
+	for i := 0; i < top3; i++ {
+		topLangs[i] = fmt.Sprintf("%s(%d)", m.profile.Languages[i].Name, m.profile.Languages[i].Count)
+	}
+	summary := m.theme.Muted.Render(fmt.Sprintf("Top: %s   •   Total languages: %d", strings.Join(topLangs, ", "), len(m.profile.Languages)))
+
+	content = lipgloss.JoinVertical(lipgloss.Left, content, "", summary)
+
+	panelWidth := clamp(m.width-4, 40, 200)
+	panel := m.theme.panelStyle(panelWidth, true).
+		Render(fit(content, panelWidth-6))
+
+	return lipgloss.JoinVertical(lipgloss.Center, "", title, "", panel, "", backHint)
+}
+
+func (m Model) renderDetailSkills() string {
+	if len(m.profile.Skills) == 0 {
+		return m.centered("No data")
+	}
+
+	total := m.profile.Difficulty.Total
+	if total == 0 {
+		return m.centered("No data")
+	}
+
+	title := m.theme.Title.Render("🏷️  Skills / Tags Breakdown")
+	backHint := m.theme.Muted.Render("[enter/esc] back  [esc] close")
+
+	barWidth := clamp(m.width-40, 15, 70)
+	maxItems := clamp(m.height-14, 3, 25)
+
+	var rows []string
+	for i, s := range m.profile.Skills {
+		if i >= maxItems {
+			break
+		}
+		ratio := float64(s.Count) / float64(total) * 100
+		rows = append(rows, renderDetailLangBar(s.Name, s.Count, ratio, barWidth))
+	}
+
+	content := lipgloss.JoinVertical(lipgloss.Left, rows...)
+
+	dsTags := map[string]bool{"Array": true, "String": true, "Hash Table": true, "Linked List": true, "Stack": true, "Queue": true, "Tree": true, "Binary Tree": true, "Heap": true, "Graph": true, "Trie": true}
+	algoTags := map[string]bool{"Dynamic Programming": true, "Binary Search": true, "Two Pointers": true, "Sliding Window": true, "Greedy": true, "Backtracking": true, "Divide and Conquer": true, "Sorting": true, "Search": true, "Recursion": true, "Bit Manipulation": true, "Math": true, "Geometry": true}
+
+	dsCount := 0
+	algoCount := 0
+	otherCount := 0
+	for _, s := range m.profile.Skills {
+		if dsTags[s.Name] {
+			dsCount += s.Count
+		} else if algoTags[s.Name] {
+			algoCount += s.Count
+		} else {
+			otherCount += s.Count
+		}
+	}
+
+	var catParts []string
+	if dsCount > 0 {
+		catParts = append(catParts, fmt.Sprintf("Data Structures: %d (%.1f%%)", dsCount, float64(dsCount)/float64(total)*100))
+	}
+	if algoCount > 0 {
+		catParts = append(catParts, fmt.Sprintf("Algorithms: %d (%.1f%%)", algoCount, float64(algoCount)/float64(total)*100))
+	}
+	if otherCount > 0 {
+		catParts = append(catParts, fmt.Sprintf("Other: %d (%.1f%%)", otherCount, float64(otherCount)/float64(total)*100))
+	}
+	summary := m.theme.Muted.Render(fmt.Sprintf("%s   •   Total tags: %d", strings.Join(catParts, "   "), len(m.profile.Skills)))
+
+	content = lipgloss.JoinVertical(lipgloss.Left, content, "", summary)
+
+	panelWidth := clamp(m.width-4, 40, 200)
+	panel := m.theme.panelStyle(panelWidth, true).
+		Render(fit(content, panelWidth-6))
+
+	return lipgloss.JoinVertical(lipgloss.Center, "", title, "", panel, "", backHint)
+}
+
+func (m Model) centered(s string) string {
+	w := m.width
+	h := m.height
+	if w <= 0 {
+		w = 80
+	}
+	if h <= 0 {
+		h = 24
+	}
+	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, m.theme.Muted.Render(s))
 }
 
 func (m Model) renderPanel(title, content string, panel Panel) string {
-	style := m.theme.Panel
-	if m.activePanel == panel {
-		style = style.BorderForeground(lipgloss.Color(m.getAccentColor()))
-	}
+	style := m.theme.panelStyle(0, m.activePanel == panel)
 	titleStyle := m.theme.Muted
 	if m.activePanel == panel {
 		titleStyle = m.theme.Selected
 	}
 	return style.Render(titleStyle.Render(title) + "\n" + content)
-}
-
-func (m Model) getAccentColor() string {
-	switch m.theme.Name {
-	case "dracula":
-		return "#BD93F9"
-	case "nord":
-		return "#88C0D0"
-	case "tokyo-night":
-		return "#7AA2F7"
-	case "catppuccin":
-		return "#CBA6F7"
-	default:
-		return "#7C5CFF"
-	}
 }
 
 func renderDifficulty(m Model, width int) string {
@@ -140,53 +324,35 @@ func renderDifficulty(m Model, width int) string {
 	)
 }
 
-func renderLanguages(m Model, width int) string {
-	if len(m.profile.Languages) == 0 {
-		return m.theme.Muted.Render("No data")
-	}
-
-	max := float64(m.profile.Languages[0].Count)
-	if max == 0 {
+func renderLanguages(m Model, width, total, maxItems int) string {
+	if len(m.profile.Languages) == 0 || total == 0 {
 		return m.theme.Muted.Render("No data")
 	}
 
 	var lines []string
-	maxItems := 8
-	if width < 30 {
-		maxItems = 5
-	}
 	for i, l := range m.profile.Languages {
 		if i >= maxItems {
 			break
 		}
-		ratio := float64(l.Count) / max
-		lines = append(lines, renderCustomBar(l.Name, ratio, width))
+		ratio := float64(l.Count) / float64(total)
+		lines = append(lines, renderCustomBar(l.Name, l.Count, ratio, width))
 	}
 
 	return lipgloss.JoinVertical(lipgloss.Left, lines...)
 }
 
-func renderSkills(m Model, width int) string {
-	if len(m.profile.Skills) == 0 {
-		return m.theme.Muted.Render("No data")
-	}
-
-	max := float64(m.profile.Skills[0].Count)
-	if max == 0 {
+func renderSkills(m Model, width, total, maxItems int) string {
+	if len(m.profile.Skills) == 0 || total == 0 {
 		return m.theme.Muted.Render("No data")
 	}
 
 	var lines []string
-	maxItems := 8
-	if width < 30 {
-		maxItems = 5
-	}
 	for i, s := range m.profile.Skills {
 		if i >= maxItems {
 			break
 		}
-		ratio := float64(s.Count) / max
-		lines = append(lines, renderCustomBar(s.Name, ratio, width))
+		ratio := float64(s.Count) / float64(total)
+		lines = append(lines, renderCustomBar(s.Name, s.Count, ratio, width))
 	}
 
 	return lipgloss.JoinVertical(lipgloss.Left, lines...)
@@ -207,7 +373,7 @@ func renderBar(label string, value int, total float64, width int, style lipgloss
 	return fmt.Sprintf("%-*s %s %5s %d", labelWidth, label, bar, pct, value)
 }
 
-func renderCustomBar(label string, ratio float64, width int) string {
+func renderCustomBar(label string, count int, ratio float64, width int) string {
 	filled := int(ratio * float64(width))
 	bar := strings.Repeat("█", filled) +
 		strings.Repeat("░", width-filled)
@@ -216,12 +382,25 @@ func renderCustomBar(label string, ratio float64, width int) string {
 	if width < 30 {
 		labelWidth = 10
 	}
-	return fmt.Sprintf("%-*s %s %s", labelWidth, label, bar, pct)
+	return fmt.Sprintf("%-*s %s %s %d", labelWidth, label, bar, pct, count)
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
+func renderDetailBar(label string, solved, total int, pct float64, width int, style lipgloss.Style) string {
+	filled := int(pct / 100 * float64(width))
+	bar := style.Render(strings.Repeat("█", filled)) +
+		strings.Repeat("░", width-filled)
+	pctStr := fmt.Sprintf("%.1f%%", pct)
+	return fmt.Sprintf("%-8s %s %7s %4d/%d", label, bar, pctStr, solved, total)
+}
+
+func renderDetailLangBar(label string, count int, pct float64, width int) string {
+	filled := int(pct / 100 * float64(width))
+	bar := strings.Repeat("█", filled) +
+		strings.Repeat("░", width-filled)
+	pctStr := fmt.Sprintf("%.1f%%", pct)
+	labelWidth := 20
+	if width < 35 {
+		labelWidth = 15
 	}
-	return b
+	return fmt.Sprintf("%-*s %s %7s %5d", labelWidth, label, bar, pctStr, count)
 }

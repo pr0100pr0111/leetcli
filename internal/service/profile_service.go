@@ -3,17 +3,20 @@ package service
 import (
 	"context"
 	"encoding/json"
-	"leetcli/internal/api"
 	"leetcli/internal/domain"
 	"sort"
 )
 
+type ProfileFetcher interface {
+	FetchProfile(ctx context.Context, username string) ([]byte, error)
+}
+
 type ProfileService struct {
-	client   *api.Client
+	client   ProfileFetcher
 	username string
 }
 
-func NewProfileService(client *api.Client, username string) *ProfileService {
+func NewProfileService(client ProfileFetcher, username string) *ProfileService {
 	return &ProfileService{client: client, username: username}
 }
 
@@ -71,6 +74,11 @@ func (s *ProfileService) GetProfile(ctx context.Context) (domain.Profile, error)
 		Username:   user.Username,
 		Rank:       user.Profile.Ranking,
 		Reputation: user.Profile.Reputation,
+		LeetCodeTotals: domain.LeetCodeTotals{
+			Easy:   800,
+			Medium: 1600,
+			Hard:   700,
+		},
 	}
 
 	for _, d := range user.SubmitStats.AC {

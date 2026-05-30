@@ -7,6 +7,12 @@ type Difficulty struct {
 	Total  int
 }
 
+type LeetCodeTotals struct {
+	Easy   int
+	Medium int
+	Hard   int
+}
+
 type Language struct {
 	Name  string
 	Count int
@@ -23,7 +29,8 @@ type Profile struct {
 	Reputation int
 	Streak     int
 
-	Difficulty Difficulty
-	Languages  []Language
-	Skills     []Skill
+	Difficulty     Difficulty
+	LeetCodeTotals LeetCodeTotals
+	Languages      []Language
+	Skills         []Skill
 }

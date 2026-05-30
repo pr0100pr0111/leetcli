@@ -86,6 +86,15 @@ func TestProfileService_GetProfile(t *testing.T) {
 	if profile.Difficulty.Total != 160 {
 		t.Errorf("Total = %d, want %d", profile.Difficulty.Total, 160)
 	}
+	if profile.LeetCodeTotals.Easy != 800 {
+		t.Errorf("LeetCodeTotals.Easy = %d, want %d", profile.LeetCodeTotals.Easy, 800)
+	}
+	if profile.LeetCodeTotals.Medium != 1600 {
+		t.Errorf("LeetCodeTotals.Medium = %d, want %d", profile.LeetCodeTotals.Medium, 1600)
+	}
+	if profile.LeetCodeTotals.Hard != 700 {
+		t.Errorf("LeetCodeTotals.Hard = %d, want %d", profile.LeetCodeTotals.Hard, 700)
+	}
 	if len(profile.Languages) != 3 {
 		t.Errorf("Languages count = %d, want 3", len(profile.Languages))
 	}
@@ -167,5 +176,8 @@ func TestGraphQLResponseStructure(t *testing.T) {
 	}
 	if len(profile.Skills) != 0 {
 		t.Errorf("Expected 0 skills")
+	}
+	if profile.LeetCodeTotals.Easy != 800 {
+		t.Errorf("Expected LeetCodeTotals.Easy = 800")
 	}
 }
