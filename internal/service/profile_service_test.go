@@ -9,12 +9,25 @@ import (
 )
 
 type mockClient struct {
-	response []byte
-	err      error
+	response         []byte
+	err              error
+	problemsResponse []byte
+	problemsErr      error
+	problemsLimit    int
+	problemsSkip     int
 }
 
 func (m *mockClient) FetchProfile(ctx context.Context, username string) ([]byte, error) {
 	return m.response, m.err
+}
+
+func (m *mockClient) FetchProblems(ctx context.Context, limit, skip int) ([]byte, error) {
+	if m.problemsErr != nil {
+		return nil, m.problemsErr
+	}
+	m.problemsLimit = limit
+	m.problemsSkip = skip
+	return m.problemsResponse, nil
 }
 
 func TestProfileService_GetProfile(t *testing.T) {
@@ -106,6 +119,57 @@ func TestProfileService_GetProfile(t *testing.T) {
 	}
 	if profile.Skills[0].Name != "Array" || profile.Skills[0].Count != 50 {
 		t.Errorf("Top skill = %+v, want {Array 50}", profile.Skills[0])
+	}
+}
+
+func TestProfileService_GetProblems(t *testing.T) {
+	rawResponse := `{
+		"data": {
+			"problemsetQuestionList": {
+				"total": 3,
+				"questions": [
+					{"frontendQuestionId": "1", "title": "Two Sum", "titleSlug": "two-sum", "difficulty": "Easy", "status": null},
+					{"frontendQuestionId": "2", "title": "Add Two Numbers", "titleSlug": "add-two-numbers", "difficulty": "Medium", "status": "Solved"},
+					{"frontendQuestionId": "3", "title": "Longest Substring", "titleSlug": "longest-substring", "difficulty": "Medium", "status": null}
+				]
+			}
+		}
+	}`
+
+	client := &mockClient{problemsResponse: []byte(rawResponse)}
+	service := NewProfileService(client, "testuser")
+
+	problems, total, err := service.GetProblems(context.Background(), 100, 0)
+	if err != nil {
+		t.Fatalf("GetProblems returned error: %v", err)
+	}
+
+	if total != 3 {
+		t.Errorf("total = %d, want 3", total)
+	}
+	if len(problems) != 3 {
+		t.Fatalf("problems count = %d, want 3", len(problems))
+	}
+	if problems[0].ID != 1 || problems[0].Title != "Two Sum" || problems[0].Difficulty != "Easy" {
+		t.Errorf("first problem = %+v", problems[0])
+	}
+	if problems[1].Status != "Solved" {
+		t.Errorf("second problem status = %q, want %q", problems[1].Status, "Solved")
+	}
+	if client.problemsLimit != 100 || client.problemsSkip != 0 {
+		t.Errorf("FetchProblems called with limit=%d skip=%d, want limit=100 skip=0", client.problemsLimit, client.problemsSkip)
+	}
+}
+
+func TestProfileService_GetProblems_GraphQLError(t *testing.T) {
+	rawResponse := `{"errors":[{"message":"Variable \"$username\" is never used"}]}`
+
+	client := &mockClient{problemsResponse: []byte(rawResponse)}
+	service := NewProfileService(client, "testuser")
+
+	_, _, err := service.GetProblems(context.Background(), 100, 0)
+	if err == nil {
+		t.Fatal("expected error for GraphQL errors array, got nil")
 	}
 }
 

@@ -23,6 +23,14 @@ type Skill struct {
 	Count int
 }
 
+type Problem struct {
+	ID         int
+	Title      string
+	Difficulty string
+	Slug       string
+	Status     string
+}
+
 type Profile struct {
 	Username   string
 	Rank       int
@@ -33,4 +41,5 @@ type Profile struct {
 	LeetCodeTotals LeetCodeTotals
 	Languages      []Language
 	Skills         []Skill
+	Problems       []Problem
 }

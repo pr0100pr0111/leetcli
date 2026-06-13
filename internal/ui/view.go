@@ -2,10 +2,12 @@ package ui
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/reflow/truncate"
+	"leetcli/internal/domain"
 )
 
 func fit(s string, width int) string {
@@ -38,6 +40,10 @@ func (m Model) View() string {
 
 	if m.err != nil {
 		return fit(m.theme.Muted.Render(fmt.Sprintf("Error: %v", m.err)), m.width)
+	}
+
+	if m.appView == ViewProblems {
+		return m.renderProblemsView()
 	}
 
 	if m.detailView != DetailNone {
@@ -97,7 +103,7 @@ func (m Model) View() string {
 
 	help := ""
 	if m.showHelp {
-		help = m.theme.Muted.Render("[r] refresh  [t] theme  [tab/←→] panel  [enter] detail  [h] hide  [q] quit")
+		help = m.theme.Muted.Render("[r] refresh  [t] theme  [b] problems  [tab/←→] panel  [enter] detail  [h] hide  [q] quit")
 	}
 
 	frame := lipgloss.JoinVertical(
@@ -125,6 +131,181 @@ func (m Model) renderDetailView() string {
 	default:
 		return ""
 	}
+}
+
+func (m Model) renderProblemsView() string {
+	width := m.width
+	if width <= 0 {
+		width = 80
+	}
+	height := m.height
+	if height <= 0 {
+		height = 24
+	}
+
+	title := m.theme.Title.Render("📋 Problem Browser")
+	backHint := m.theme.Muted.Render("[q/esc] back  [j/k] move  [[]/]] page  [g/G] top/bottom  [r] refresh")
+
+	if m.problemsLoading {
+		content := "\n  " + m.spinner.View() + " Loading problems..."
+		return lipgloss.JoinVertical(lipgloss.Left, title, "", content, "", backHint)
+	}
+
+	if m.problemsErr != nil {
+		content := m.theme.Muted.Render(fmt.Sprintf("Error: %v", m.problemsErr))
+		return lipgloss.JoinVertical(lipgloss.Left, title, "", content, "", backHint)
+	}
+
+	if !m.problemsLoaded {
+		content := m.theme.Muted.Render("Press [r] to load problems")
+		return lipgloss.JoinVertical(lipgloss.Left, title, "", content, "", backHint)
+	}
+
+	if len(m.problems) == 0 {
+		content := m.theme.Muted.Render("No problems found")
+		return lipgloss.JoinVertical(lipgloss.Left, title, "", content, "", backHint)
+	}
+
+	loaded := len(m.problems)
+	knownTotal := m.problemsTotal
+	if knownTotal < loaded {
+		knownTotal = loaded
+	}
+	pageSize := m.pageSize()
+	totalPages := (knownTotal-1)/pageSize + 1
+
+	cursor := m.cursor
+	if cursor >= loaded {
+		cursor = loaded - 1
+	}
+	if cursor < 0 {
+		cursor = 0
+	}
+	page := cursor / pageSize
+	start := page * pageSize
+	end := start + pageSize
+	if end > loaded {
+		end = loaded
+	}
+
+	idW := len("ID")
+	for _, p := range m.problems {
+		if d := len(strconv.Itoa(p.ID)); d > idW {
+			idW = d
+		}
+	}
+	diffW := len("Difficulty")
+	statusW := len("Status")
+	gap := 2
+	prefixW := 2
+
+	titleW := width - prefixW - idW - diffW - statusW - gap*3
+	if titleW < 10 {
+		titleW = 10
+	}
+
+	headerLine := m.theme.Muted.Render(
+		strings.Repeat(" ", prefixW) +
+			padRight("ID", idW) + strings.Repeat(" ", gap) +
+			padRight("Title", titleW) + strings.Repeat(" ", gap) +
+			padRight("Difficulty", diffW) + strings.Repeat(" ", gap) +
+			padRight("Status", statusW),
+	)
+
+	sepW := prefixW + idW + gap + titleW + gap + diffW + gap + statusW
+	if sepW > width-2 {
+		sepW = width - 2
+	}
+	if sepW < 10 {
+		sepW = 10
+	}
+	sep := m.theme.Muted.Render(strings.Repeat("─", sepW))
+
+	var lines []string
+	lines = append(lines, headerLine, sep)
+
+	for i := start; i < end; i++ {
+		lines = append(lines, m.renderProblemLine(m.problems[i], i == cursor, idW, titleW, diffW, statusW, gap, width))
+	}
+
+	progress := m.theme.Muted.Render(fmt.Sprintf(
+		"  Page %d/%d  •  problems %d–%d of %d",
+		page+1, totalPages, start+1, end, knownTotal,
+	))
+	if m.problemsLoadingMore {
+		progress += "  " + m.theme.Muted.Render(fmt.Sprintf("%s loading…", m.spinner.View()))
+	}
+
+	return fit(lipgloss.JoinVertical(
+		lipgloss.Left,
+		title,
+		"",
+		lipgloss.JoinVertical(lipgloss.Left, lines...),
+		"",
+		progress,
+		"",
+		backHint,
+	), width)
+}
+
+func (m Model) renderProblemLine(p domain.Problem, selected bool, idW, titleW, diffW, statusW, gap int, width int) string {
+	prefix := "  "
+	if selected {
+		prefix = m.theme.Selected.Render("▶ ")
+	}
+
+	idStr := padRight(strconv.Itoa(p.ID), idW)
+	titleStr := padRight(trunc(p.Title, titleW), titleW)
+	if selected {
+		titleStr = m.theme.Selected.Render(titleStr)
+	}
+
+	var diffStyle lipgloss.Style
+	switch p.Difficulty {
+	case "Easy":
+		diffStyle = m.theme.Easy
+	case "Medium":
+		diffStyle = m.theme.Medium
+	case "Hard":
+		diffStyle = m.theme.Hard
+	default:
+		diffStyle = m.theme.Muted
+	}
+	diffStr := diffStyle.Render(padRight(p.Difficulty, diffW))
+
+	status := "❌"
+	if p.Status == "Solved" {
+		status = "✅"
+	}
+	statusStr := padRight(status, statusW)
+
+	line := prefix + idStr + strings.Repeat(" ", gap) +
+		titleStr + strings.Repeat(" ", gap) +
+		diffStr + strings.Repeat(" ", gap) +
+		statusStr
+
+	return fit(line, width)
+}
+
+func padRight(s string, w int) string {
+	d := lipgloss.Width(s)
+	if d >= w {
+		return s
+	}
+	return s + strings.Repeat(" ", w-d)
+}
+
+func trunc(s string, w int) string {
+	if w <= 0 {
+		return ""
+	}
+	if lipgloss.Width(s) <= w {
+		return s
+	}
+	if w == 1 {
+		return "…"
+	}
+	return truncate.String(s, uint(w-1)) + "…"
 }
 
 func (m Model) renderDetailDifficulty() string {

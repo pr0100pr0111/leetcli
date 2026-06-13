@@ -3,12 +3,15 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"leetcli/internal/domain"
 	"sort"
+	"strconv"
 )
 
 type ProfileFetcher interface {
 	FetchProfile(ctx context.Context, username string) ([]byte, error)
+	FetchProblems(ctx context.Context, limit, skip int) ([]byte, error)
 }
 
 type ProfileService struct {
@@ -123,4 +126,52 @@ func (s *ProfileService) GetProfile(ctx context.Context) (domain.Profile, error)
 	})
 
 	return profile, nil
+}
+
+func (s *ProfileService) GetProblems(ctx context.Context, limit, skip int) ([]domain.Problem, int, error) {
+	raw, err := s.client.FetchProblems(ctx, limit, skip)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	var response struct {
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors"`
+		Data struct {
+			ProblemsetQuestionList struct {
+				Total     int `json:"total"`
+				Questions []struct {
+					FrontendQuestionID string `json:"frontendQuestionId"`
+					Title              string `json:"title"`
+					TitleSlug          string `json:"titleSlug"`
+					Difficulty         string `json:"difficulty"`
+					Status             string `json:"status"`
+				} `json:"questions"`
+			} `json:"problemsetQuestionList"`
+		} `json:"data"`
+	}
+
+	if err := json.Unmarshal(raw, &response); err != nil {
+		return nil, 0, err
+	}
+
+	if len(response.Errors) > 0 {
+		return nil, 0, errors.New(response.Errors[0].Message)
+	}
+
+	questions := response.Data.ProblemsetQuestionList.Questions
+	problems := make([]domain.Problem, len(questions))
+	for i, q := range questions {
+		id, _ := strconv.Atoi(q.FrontendQuestionID)
+		problems[i] = domain.Problem{
+			ID:         id,
+			Title:      q.Title,
+			Difficulty: q.Difficulty,
+			Slug:       q.TitleSlug,
+			Status:     q.Status,
+		}
+	}
+
+	return problems, response.Data.ProblemsetQuestionList.Total, nil
 }
