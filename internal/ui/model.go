@@ -260,6 +260,13 @@ func (m Model) updateProblemsView(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.problemsLoaded = false
 		m.problemsTotal = 0
 		return m, m.fetchProblems(problemsPageSize, 0)
+	case "enter":
+		if m.cursor >= 0 && m.cursor < len(m.problems) {
+			slug := m.problems[m.cursor].Slug
+			if slug != "" {
+				return m, openBrowser(problemURL(slug))
+			}
+		}
 	}
 	return m.maybeLoadMore()
 }

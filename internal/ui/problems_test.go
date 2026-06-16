@@ -294,6 +294,52 @@ func TestProblemBrowserPageAppend(t *testing.T) {
 	}
 }
 
+func TestProblemURL(t *testing.T) {
+	got := problemURL("two-sum")
+	want := "https://leetcode.com/problems/two-sum/"
+	if got != want {
+		t.Errorf("problemURL = %q, want %q", got, want)
+	}
+}
+
+func TestProblemBrowserEnterOpensProblem(t *testing.T) {
+	m := problemsModel(100, 20, 10)
+	m.cursor = 3
+
+	result, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	updated := result.(Model)
+
+	if cmd == nil {
+		t.Fatal("enter should return an open-browser command")
+	}
+	if updated.cursor != 3 {
+		t.Errorf("cursor changed on enter: = %d, want 3", updated.cursor)
+	}
+	if updated.appView != ViewProblems {
+		t.Errorf("view changed on enter: = %v", updated.appView)
+	}
+
+	m.cursor = -1
+	_, cmd = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd != nil {
+		t.Errorf("enter with out-of-range cursor should not open anything")
+	}
+
+	m.cursor = len(m.problems)
+	_, cmd = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd != nil {
+		t.Errorf("enter past the end should not open anything")
+	}
+
+	m = problemsModel(100, 20, 10)
+	m.problems[0].Slug = ""
+	m.cursor = 0
+	_, cmd = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd != nil {
+		t.Errorf("enter with empty slug should not open anything")
+	}
+}
+
 func TestProblemBrowserShortPageSetsTotal(t *testing.T) {
 	m := problemsModel(100, 20, 100)
 	m.problemsTotal = 0

@@ -144,7 +144,7 @@ func (m Model) renderProblemsView() string {
 	}
 
 	title := m.theme.Title.Render("📋 Problem Browser")
-	backHint := m.theme.Muted.Render("[q/esc] back  [j/k] move  [[]/]] page  [g/G] top/bottom  [r] refresh")
+	backHint := m.theme.Muted.Render("[q/esc] back  [j/k] move  [[]/]] page  [g/G] top/bottom  [enter] open  [r] refresh")
 
 	if m.problemsLoading {
 		content := "\n  " + m.spinner.View() + " Loading problems..."
