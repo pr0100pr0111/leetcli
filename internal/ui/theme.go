@@ -11,6 +11,7 @@ type Theme struct {
 	Muted       lipgloss.Style
 	Accent      lipgloss.Style
 	Selected    lipgloss.Style
+	BarTrack    lipgloss.Style
 	PanelBorder string
 	AccentHex   string
 }
@@ -40,6 +41,7 @@ func DefaultTheme() Theme {
 		Muted:       lipgloss.NewStyle().Foreground(lipgloss.Color("#888")),
 		Accent:      lipgloss.NewStyle().Foreground(lipgloss.Color("#7C5CFF")),
 		Selected:    lipgloss.NewStyle().Foreground(lipgloss.Color("#7C5CFF")).Bold(true),
+		BarTrack:    lipgloss.NewStyle().Background(lipgloss.Color("#2E3038")),
 		PanelBorder: "#444",
 		AccentHex:   "#7C5CFF",
 	}
@@ -55,6 +57,7 @@ func DraculaTheme() Theme {
 		Muted:       lipgloss.NewStyle().Foreground(lipgloss.Color("#6272A4")),
 		Accent:      lipgloss.NewStyle().Foreground(lipgloss.Color("#BD93F9")),
 		Selected:    lipgloss.NewStyle().Foreground(lipgloss.Color("#BD93F9")).Bold(true),
+		BarTrack:    lipgloss.NewStyle().Background(lipgloss.Color("#343746")),
 		PanelBorder: "#BD93F9",
 		AccentHex:   "#BD93F9",
 	}
@@ -70,6 +73,7 @@ func NordTheme() Theme {
 		Muted:       lipgloss.NewStyle().Foreground(lipgloss.Color("#4C566A")),
 		Accent:      lipgloss.NewStyle().Foreground(lipgloss.Color("#88C0D0")),
 		Selected:    lipgloss.NewStyle().Foreground(lipgloss.Color("#88C0D0")).Bold(true),
+		BarTrack:    lipgloss.NewStyle().Background(lipgloss.Color("#3B4252")),
 		PanelBorder: "#4C566A",
 		AccentHex:   "#88C0D0",
 	}
@@ -85,6 +89,7 @@ func TokyoNightTheme() Theme {
 		Muted:       lipgloss.NewStyle().Foreground(lipgloss.Color("#565F89")),
 		Accent:      lipgloss.NewStyle().Foreground(lipgloss.Color("#7AA2F7")),
 		Selected:    lipgloss.NewStyle().Foreground(lipgloss.Color("#7AA2F7")).Bold(true),
+		BarTrack:    lipgloss.NewStyle().Background(lipgloss.Color("#292E42")),
 		PanelBorder: "#7AA2F7",
 		AccentHex:   "#7AA2F7",
 	}
@@ -100,6 +105,7 @@ func CatppuccinTheme() Theme {
 		Muted:       lipgloss.NewStyle().Foreground(lipgloss.Color("#6C7086")),
 		Accent:      lipgloss.NewStyle().Foreground(lipgloss.Color("#CBA6F7")),
 		Selected:    lipgloss.NewStyle().Foreground(lipgloss.Color("#CBA6F7")).Bold(true),
+		BarTrack:    lipgloss.NewStyle().Background(lipgloss.Color("#45475A")),
 		PanelBorder: "#CBA6F7",
 		AccentHex:   "#CBA6F7",
 	}

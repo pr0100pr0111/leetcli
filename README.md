@@ -42,6 +42,11 @@ theme: dracula  # default, dracula, nord, tokyo-night, catppuccin
 | `Tab` / `→` | Next panel |
 | `Shift+Tab` / `←` | Previous panel |
 | `h` / `?` | Toggle help |
+| `b` | Problem Browser |
+| `Enter` | Open detail view / open problem in browser |
+| `Esc` | Close detail view |
+| `j` / `k` | Move in Problem Browser |
+| `[` / `]` | Prev / next page in Problem Browser |
 
 ## Screenshots
 
@@ -51,10 +56,10 @@ LeetCode Dashboard • username
 theme: default
 Rank: 12345   Reputation: 678   Streak: 42 days
 
-📊 Difficulty              💻 Languages            🏷️  Skills
-Easy     ██████████░░░░░░  60%   120   Go        ████████████  100%   Array        ████████████████  100%
-Medium   ██████░░░░░░░░░░  30%   60    Python    ████████░░░░  65%    Dynamic Prog ████████████░░░░  75%
-Hard     ████░░░░░░░░░░░░  10%   20    JavaScript ██████░░░░░░  45%    String       ██████████░░░░░░  60%
+Difficulty              Languages            Skills
+Easy     ██████████        60%   120   Go        ████████████  100%   Array        ████████████████  100%
+Medium   ██████            30%   60    Python    ████████      65%    Dynamic Prog ████████████      75%
+Hard     ████              10%   20    JavaScript ██████       45%    String       ██████████        60%
 
 [r] refresh  [t] theme  [tab/←→] panel  [h] help  [q] quit
 ```
@@ -65,10 +70,10 @@ LeetCode Dashboard • username
 theme: dracula
 Rank: 12345   Reputation: 678   Streak: 42 days
 
-📊 Difficulty              💻 Languages            🏷️  Skills
-Easy     ██████████░░░░░░  60%   120   Go        ████████████  100%   Array        ████████████████  100%
-Medium   ██████░░░░░░░░░░  30%   60    Python    ████████░░░░  65%    Dynamic Prog ████████████░░░░  75%
-Hard     ████░░░░░░░░░░░░  10%   20    JavaScript ██████░░░░░░  45%    String       ██████████░░░░░░  60%
+Difficulty              Languages            Skills
+Easy     ██████████        60%   120   Go        ████████████  100%   Array        ████████████████  100%
+Medium   ██████            30%   60    Python    ████████      65%    Dynamic Prog ████████████      75%
+Hard     ████              10%   20    JavaScript ██████       45%    String       ██████████        60%
 
 [r] refresh  [t] theme  [tab/←→] panel  [h] help  [q] quit
 ```
@@ -91,7 +96,7 @@ leetcli/
 
 ## Roadmap
 
-- [ ] Problem Browser (list, filter, open in browser)
+- [x] Problem Browser (list, pagination, open in browser)
 - [ ] Contest History with rating graph
 - [ ] Daily Challenge tracker
 - [ ] Export PNG/JSON

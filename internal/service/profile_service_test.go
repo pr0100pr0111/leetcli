@@ -15,6 +15,9 @@ type mockClient struct {
 	problemsErr      error
 	problemsLimit    int
 	problemsSkip     int
+	detailResponse   []byte
+	detailErr        error
+	detailSlug       string
 }
 
 func (m *mockClient) FetchProfile(ctx context.Context, username string) ([]byte, error) {
@@ -28,6 +31,14 @@ func (m *mockClient) FetchProblems(ctx context.Context, limit, skip int) ([]byte
 	m.problemsLimit = limit
 	m.problemsSkip = skip
 	return m.problemsResponse, nil
+}
+
+func (m *mockClient) FetchProblemDetail(ctx context.Context, titleSlug string) ([]byte, error) {
+	if m.detailErr != nil {
+		return nil, m.detailErr
+	}
+	m.detailSlug = titleSlug
+	return m.detailResponse, nil
 }
 
 func TestProfileService_GetProfile(t *testing.T) {

@@ -12,6 +12,7 @@ import (
 type ProfileFetcher interface {
 	FetchProfile(ctx context.Context, username string) ([]byte, error)
 	FetchProblems(ctx context.Context, limit, skip int) ([]byte, error)
+	FetchProblemDetail(ctx context.Context, titleSlug string) ([]byte, error)
 }
 
 type ProfileService struct {
