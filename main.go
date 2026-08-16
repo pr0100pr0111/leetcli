@@ -2,8 +2,10 @@ package main
 
 import (
 	"log"
+	"os"
 
 	"leetcli/internal/api"
+	"leetcli/internal/cli"
 	"leetcli/internal/config"
 	"leetcli/internal/service"
 	"leetcli/internal/ui"
@@ -12,6 +14,9 @@ import (
 )
 
 func main() {
+	if len(os.Args) > 1 {
+		os.Exit(cli.Run(os.Args[1:]))
+	}
 
 	cfg, err := config.Load()
 	if err != nil {

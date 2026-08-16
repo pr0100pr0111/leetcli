@@ -1,6 +1,6 @@
 # leetcli
 
-A polished terminal dashboard for your LeetCode profile.
+A polished terminal dashboard for your LeetCode profile, plus a local test runner.
 
 ## Features
 
@@ -11,10 +11,11 @@ A polished terminal dashboard for your LeetCode profile.
 - **Streak tracking** — Current daily streak
 - **5 built-in themes**: Default, Dracula, Nord, Tokyo Night, Catppuccin
 - **Keyboard navigation** — Tab/arrows to switch panels, `t` to cycle themes
+- **Local test runner** — `leetcli init` scaffolds a solution, `leetcli test` runs it against the sample case (Go, Python 3, JavaScript, C++)
 - **Async loading** with spinner
 - **Refresh with `r`**
 - **YAML config** with theme persistence
-- **Production-ready architecture** (clean separation: api/service/ui/config)
+- **Production-ready architecture** (clean separation: api/service/runner/cli/ui/config)
 
 ## Install
 
@@ -31,6 +32,33 @@ username: your_leetcode_username
 refresh_interval: 300
 theme: dracula  # default, dracula, nord, tokyo-night, catppuccin
 ```
+
+## Local tests
+
+```bash
+leetcli init two-sum --lang python3   # creates solution.py + leetcli.json
+$EDITOR solution.py
+leetcli test                          # runs the sample case, prints PASS/FAIL
+```
+
+`init` fetches the problem and writes the official LeetCode stub into the current
+directory; `test` fetches the problem again (signature, sample input, expected
+output), runs your solution in a sandbox and compares the result.
+
+- Languages: `golang`, `python3`, `javascript`, `cpp` (aliases: `go`, `python`,
+  `js`, `c++`) — the respective toolchain must be on `PATH`
+- `leetcli init <slug> --force` overwrites existing files
+- `leetcli test --keep` keeps the generated harness for inspection
+- Exit codes: `0` passed, `1` failed, `2` usage error
+- No config file needed for `init`/`test`; run `leetcli help` for the reference
+
+Current limitations (v1):
+
+- The expected output is taken from the first example in the statement, so it may
+  differ from LeetCode's hidden sample test
+- Problems with multiple valid answers (e.g. any valid permutation) may report FAIL
+- Debug prints are fine, but avoid printing without a trailing newline (it can
+  break result parsing)
 
 ## Controls
 
@@ -82,12 +110,14 @@ Hard     ████              10%   20    JavaScript ██████    
 
 ```
 leetcli/
-├── main.go                      # Entry point
+├── main.go                      # Entry point (TUI or CLI subcommand)
 ├── internal/
-│   ├── api/client.go            # GraphQL HTTP client
+│   ├── api/                     # GraphQL HTTP clients (profile, problem detail)
 │   ├── config/config.go         # YAML config loader
-│   ├── domain/models.go         # Domain models
-│   ├── service/profile_service.go  # Business logic
+│   ├── domain/                  # Domain models
+│   ├── service/                 # Business logic + statement parsing
+│   ├── runner/                  # Multi-language local test runner
+│   ├── cli/                     # `leetcli init` / `leetcli test`
 │   └── ui/
 │       ├── model.go             # Bubble Tea model + update
 │       ├── view.go              # Lipgloss rendering
@@ -97,11 +127,12 @@ leetcli/
 ## Roadmap
 
 - [x] Problem Browser (list, pagination, open in browser)
+- [x] Local test runner (`leetcli init` / `leetcli test`, Go/Python/JS/C++)
 - [ ] Contest History with rating graph
 - [ ] Daily Challenge tracker
 - [ ] Export PNG/JSON
 - [ ] GitHub Action for README stats
-- [ ] Local problem cache + test runner
+- [ ] Local problem cache + more test languages (Java, Rust)
 
 ## License
 
