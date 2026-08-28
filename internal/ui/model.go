@@ -2,6 +2,9 @@ package ui
 
 import (
 	"context"
+	"strconv"
+	"strings"
+
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"leetcli/internal/config"
@@ -60,6 +63,10 @@ type Model struct {
 	problemsLoadingMore bool
 	problemsTotal       int
 	cursor              int
+	searchMode          bool
+	query               string
+	filtered            []int
+	loadingAll          bool
 }
 
 const problemsPageSize = 100
@@ -142,6 +149,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if msg.skip == 0 {
 				m.problemsErr = msg.err
 			}
+			m.loadingAll = false
 			return m, nil
 		}
 		m.problemsErr = nil
@@ -159,7 +167,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.problemsTotal = msg.skip + len(msg.problems)
 		}
 		m.problemsLoaded = true
-		return m, nil
+		m.refilter()
+		return m, m.continueLoadAll()
 
 	case tea.KeyMsg:
 		if m.appView == ViewProblems {
@@ -220,13 +229,28 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) updateProblemsView(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.searchMode {
+		return m.updateSearchInput(msg)
+	}
 	pageSize := m.pageSize()
-	last := len(m.problems) - 1
+	last := m.visibleCount() - 1
 
 	switch msg.String() {
-	case "q", "ctrl+c", "esc":
-		m.appView = ViewDashboard
+	case "q", "ctrl+c":
+		m.leaveProblems()
 		return m, nil
+	case "esc":
+		if m.query != "" {
+			m.query = ""
+			m.filtered = nil
+			m.cursor = 0
+			return m, nil
+		}
+		m.leaveProblems()
+		return m, nil
+	case "/":
+		m.searchMode = true
+		return m, m.startLoadAll()
 	case "j", "down":
 		if m.cursor < last {
 			m.cursor++
@@ -261,14 +285,143 @@ func (m Model) updateProblemsView(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.problemsTotal = 0
 		return m, m.fetchProblems(problemsPageSize, 0)
 	case "enter":
-		if m.cursor >= 0 && m.cursor < len(m.problems) {
-			slug := m.problems[m.cursor].Slug
+		if m.cursor >= 0 && m.cursor < m.visibleCount() {
+			slug := m.problemAt(m.cursor).Slug
 			if slug != "" {
 				return m, openBrowser(problemURL(slug))
 			}
 		}
 	}
 	return m.maybeLoadMore()
+}
+
+func (m *Model) leaveProblems() {
+	m.appView = ViewDashboard
+	m.searchMode = false
+	m.query = ""
+	m.filtered = nil
+	m.cursor = 0
+}
+
+func (m Model) updateSearchInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyCtrlC:
+		return m, tea.Quit
+	case tea.KeyEnter:
+		m.searchMode = false
+		return m, nil
+	case tea.KeyEsc:
+		m.searchMode = false
+		m.query = ""
+		m.filtered = nil
+		m.cursor = 0
+		return m, nil
+	case tea.KeyBackspace:
+		if m.query != "" {
+			r := []rune(m.query)
+			m.query = string(r[:len(r)-1])
+			m.afterQueryChange()
+		}
+		return m, nil
+	case tea.KeyDelete:
+		m.query = ""
+		m.afterQueryChange()
+		return m, nil
+	case tea.KeySpace:
+		m.query += " "
+		m.afterQueryChange()
+		return m, nil
+	case tea.KeyRunes:
+		if len(msg.Runes) > 0 && !msg.Alt {
+			m.query += string(msg.Runes)
+			m.afterQueryChange()
+		}
+		return m, nil
+	}
+	return m, nil
+}
+
+func (m *Model) afterQueryChange() {
+	m.cursor = 0
+	m.refilter()
+}
+
+func (m *Model) refilter() {
+	if m.query == "" {
+		m.filtered = nil
+		return
+	}
+	m.filtered = filterIndices(m.problems, m.query)
+	if m.cursor >= len(m.filtered) {
+		m.cursor = len(m.filtered) - 1
+	}
+	if m.cursor < 0 {
+		m.cursor = 0
+	}
+}
+
+func filterIndices(problems []domain.Problem, query string) []int {
+	q := strings.ToLower(query)
+	out := make([]int, 0, len(problems))
+	for i, p := range problems {
+		if strings.Contains(strings.ToLower(p.Title), q) ||
+			strings.Contains(strings.ToLower(p.Slug), q) ||
+			strings.Contains(strconv.Itoa(p.ID), q) {
+			out = append(out, i)
+		}
+	}
+	return out
+}
+
+func (m Model) visibleCount() int {
+	if m.filtered != nil {
+		return len(m.filtered)
+	}
+	return len(m.problems)
+}
+
+func (m Model) problemAt(i int) domain.Problem {
+	if m.filtered != nil {
+		if i < 0 || i >= len(m.filtered) {
+			return domain.Problem{}
+		}
+		return m.problems[m.filtered[i]]
+	}
+	if i < 0 || i >= len(m.problems) {
+		return domain.Problem{}
+	}
+	return m.problems[i]
+}
+
+func (m *Model) startLoadAll() tea.Cmd {
+	if !m.problemsLoaded {
+		if !m.problemsLoading {
+			m.problemsLoading = true
+			m.loadingAll = true
+			return m.fetchProblems(problemsPageSize, 0)
+		}
+		m.loadingAll = true
+		return nil
+	}
+	if m.problemsTotal > len(m.problems) && !m.problemsLoadingMore && !m.loadingAll {
+		m.loadingAll = true
+		m.problemsLoadingMore = true
+		return m.fetchProblems(problemsPageSize, len(m.problems))
+	}
+	return nil
+}
+
+func (m *Model) continueLoadAll() tea.Cmd {
+	if !m.loadingAll {
+		return nil
+	}
+	if m.problemsTotal <= len(m.problems) {
+		m.loadingAll = false
+		m.problemsLoadingMore = false
+		return nil
+	}
+	m.problemsLoadingMore = true
+	return m.fetchProblems(problemsPageSize, len(m.problems))
 }
 
 func (m Model) maybeLoadMore() (Model, tea.Cmd) {

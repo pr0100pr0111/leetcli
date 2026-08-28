@@ -11,6 +11,7 @@ A polished terminal dashboard for your LeetCode profile, plus a local test runne
 - **Streak tracking** — Current daily streak
 - **5 built-in themes**: Default, Dracula, Nord, Tokyo Night, Catppuccin
 - **Keyboard navigation** — Tab/arrows to switch panels, `t` to cycle themes
+- **Problem filter** — `/` live search by title, slug or ID in the Problem Browser
 - **Local test runner** — `leetcli init` scaffolds a solution, `leetcli test` runs it against the sample case (Go, Python 3, JavaScript, C++)
 - **Async loading** with spinner
 - **Refresh with `r`**
@@ -75,6 +76,7 @@ Current limitations (v1):
 | `Esc` | Close detail view |
 | `j` / `k` | Move in Problem Browser |
 | `[` / `]` | Prev / next page in Problem Browser |
+| `/` | Filter problems (search by title/slug/ID, `enter` apply, `esc` clear) |
 
 ## Screenshots
 

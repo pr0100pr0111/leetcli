@@ -161,45 +161,47 @@ func (m Model) renderProblemsView() string {
 	if width <= 0 {
 		width = 80
 	}
-	height := m.height
-	if height <= 0 {
-		height = 24
-	}
 
 	title := m.theme.Title.Render("📋 Problem Browser")
-	backHint := m.theme.Muted.Render("[q/esc] back  [j/k] move  [[]/]] page  [g/G] top/bottom  [enter] open  [r] refresh")
+	backHint := m.theme.Muted.Render("[q/esc] back  [/] filter  [j/k] move  [[]/]] page  [g/G] top/bottom  [enter] open  [r] refresh")
+
+	head := []string{title}
+	if fl := m.renderFilterLine(); fl != "" {
+		head = append(head, fl)
+	}
 
 	if m.problemsLoading {
 		content := "\n  " + m.spinner.View() + " Loading problems..."
-		return lipgloss.JoinVertical(lipgloss.Left, title, "", content, "", backHint)
+		return lipgloss.JoinVertical(lipgloss.Left, append(head, "", content, "", backHint)...)
 	}
 
 	if m.problemsErr != nil {
 		content := m.theme.Muted.Render(fmt.Sprintf("Error: %v", m.problemsErr))
-		return lipgloss.JoinVertical(lipgloss.Left, title, "", content, "", backHint)
+		return lipgloss.JoinVertical(lipgloss.Left, append(head, "", content, "", backHint)...)
 	}
 
 	if !m.problemsLoaded {
 		content := m.theme.Muted.Render("Press [r] to load problems")
-		return lipgloss.JoinVertical(lipgloss.Left, title, "", content, "", backHint)
+		return lipgloss.JoinVertical(lipgloss.Left, append(head, "", content, "", backHint)...)
 	}
 
 	if len(m.problems) == 0 {
 		content := m.theme.Muted.Render("No problems found")
-		return lipgloss.JoinVertical(lipgloss.Left, title, "", content, "", backHint)
+		return lipgloss.JoinVertical(lipgloss.Left, append(head, "", content, "", backHint)...)
 	}
 
-	loaded := len(m.problems)
-	knownTotal := m.problemsTotal
-	if knownTotal < loaded {
-		knownTotal = loaded
+	if m.visibleCount() == 0 {
+		content := m.theme.Muted.Render(fmt.Sprintf("No problems match %q", m.query))
+		return lipgloss.JoinVertical(lipgloss.Left, append(head, "", content, "", backHint)...)
 	}
+
+	visible := m.visibleCount()
 	pageSize := m.pageSize()
-	totalPages := (knownTotal-1)/pageSize + 1
+	totalPages := (visible-1)/pageSize + 1
 
 	cursor := m.cursor
-	if cursor >= loaded {
-		cursor = loaded - 1
+	if cursor >= visible {
+		cursor = visible - 1
 	}
 	if cursor < 0 {
 		cursor = 0
@@ -207,8 +209,8 @@ func (m Model) renderProblemsView() string {
 	page := cursor / pageSize
 	start := page * pageSize
 	end := start + pageSize
-	if end > loaded {
-		end = loaded
+	if end > visible {
+		end = visible
 	}
 
 	idW := len("ID")
@@ -248,27 +250,45 @@ func (m Model) renderProblemsView() string {
 	lines = append(lines, headerLine, sep)
 
 	for i := start; i < end; i++ {
-		lines = append(lines, m.renderProblemLine(m.problems[i], i == cursor, idW, titleW, diffW, statusW, gap, width))
+		lines = append(lines, m.renderProblemLine(m.problemAt(i), i == cursor, idW, titleW, diffW, statusW, gap, width))
 	}
 
-	progress := m.theme.Muted.Render(fmt.Sprintf(
-		"  Page %d/%d  •  problems %d–%d of %d",
-		page+1, totalPages, start+1, end, knownTotal,
-	))
+	var progress string
+	if m.query != "" {
+		progress = m.theme.Muted.Render(fmt.Sprintf(
+			"  Page %d/%d  •  matches %d–%d of %d",
+			page+1, totalPages, start+1, end, visible,
+		))
+	} else {
+		knownTotal := m.problemsTotal
+		if knownTotal < len(m.problems) {
+			knownTotal = len(m.problems)
+		}
+		progress = m.theme.Muted.Render(fmt.Sprintf(
+			"  Page %d/%d  •  problems %d–%d of %d",
+			page+1, totalPages, start+1, end, knownTotal,
+		))
+	}
 	if m.problemsLoadingMore {
-		progress += "  " + m.theme.Muted.Render(fmt.Sprintf("%s loading…", m.spinner.View()))
+		progress += " " + m.theme.Muted.Render(fmt.Sprintf("%s loading…", m.spinner.View()))
 	}
 
 	return fit(lipgloss.JoinVertical(
 		lipgloss.Left,
-		title,
-		"",
-		lipgloss.JoinVertical(lipgloss.Left, lines...),
-		"",
-		progress,
-		"",
-		backHint,
+		append(head, "", lipgloss.JoinVertical(lipgloss.Left, lines...), "", progress, "", backHint)...,
 	), width)
+}
+
+func (m Model) renderFilterLine() string {
+	if m.searchMode {
+		return m.theme.Selected.Render("/ ") + m.theme.Title.Render(m.query) +
+			m.theme.Muted.Render(fmt.Sprintf("▌  %d matches", m.visibleCount()))
+	}
+	if m.query == "" {
+		return ""
+	}
+	return m.theme.Muted.Render("filter: ") + m.theme.Accent.Render(m.query) +
+		m.theme.Muted.Render(fmt.Sprintf("  %d matches  [/] edit [esc] clear", m.visibleCount()))
 }
 
 func (m Model) renderProblemLine(p domain.Problem, selected bool, idW, titleW, diffW, statusW, gap int, width int) string {
