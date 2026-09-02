@@ -106,12 +106,20 @@ func parseSignature(raw string) domain.Signature {
 
 	sig := domain.Signature{
 		Name:   meta.Name,
-		Return: meta.Return.Type,
+		Return: normalizeType(meta.Return.Type),
 	}
 	for _, p := range meta.Params {
-		sig.Params = append(sig.Params, domain.Param{Name: p.Name, Type: p.Type})
+		sig.Params = append(sig.Params, domain.Param{Name: p.Name, Type: normalizeType(p.Type)})
 	}
 	return sig
+}
+
+func normalizeType(typ string) string {
+	typ = strings.TrimSpace(typ)
+	if strings.HasPrefix(typ, "list<") && strings.HasSuffix(typ, ">") {
+		return normalizeType(typ[len("list<"):len(typ)-1]) + "[]"
+	}
+	return typ
 }
 
 func parseExamples(content string) []domain.Example {

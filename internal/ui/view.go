@@ -23,6 +23,17 @@ func fit(s string, width int) string {
 	return strings.Join(lines, "\n")
 }
 
+func truncLines(s string, height int) string {
+	if height <= 0 {
+		return s
+	}
+	lines := strings.Split(s, "\n")
+	if len(lines) > height {
+		lines = lines[:height]
+	}
+	return strings.Join(lines, "\n")
+}
+
 func clamp(v, lo, hi int) int {
 	if v < lo {
 		return lo
@@ -43,11 +54,11 @@ func (m Model) View() string {
 	}
 
 	if m.appView == ViewProblems {
-		return m.renderProblemsView()
+		return truncLines(m.renderProblemsView(), m.height)
 	}
 
 	if m.detailView != DetailNone {
-		return fit(m.renderDetailView(), m.width)
+		return truncLines(fit(m.renderDetailView(), m.width), m.height)
 	}
 
 	width := m.width
@@ -85,6 +96,13 @@ func (m Model) View() string {
 		m.profile.Reputation,
 		m.profile.Streak,
 	)
+
+	frameLines := []string{header, themeBadge, meta}
+	if m.dailyOK {
+		frameLines = append(frameLines, m.theme.Muted.Render(fmt.Sprintf("Daily #%d ", m.daily.ID))+
+			m.theme.Title.Render(m.daily.Title)+" "+
+			m.difficultyStyle(m.daily.Difficulty).Render("("+m.daily.Difficulty+")"))
+	}
 
 	renderContents := func(bw int) (string, string, string) {
 		return renderDifficulty(m, bw),
@@ -126,21 +144,12 @@ func (m Model) View() string {
 
 	help := ""
 	if m.showHelp {
-		help = m.theme.Muted.Render("[r] refresh  [t] theme  [b] problems  [tab/←→] panel  [enter] detail  [h] hide  [q] quit")
+		help = m.theme.Muted.Render("[r] refresh  [t] theme  [b] problems  [d] daily  [tab/←→] panel  [enter] detail  [h] hide  [q] quit")
 	}
 
-	frame := lipgloss.JoinVertical(
-		lipgloss.Left,
-		header,
-		themeBadge,
-		meta,
-		"",
-		panels,
-		"",
-		help,
-	)
+	frameLines = append(frameLines, "", panels, "", help)
 
-	return fit(frame, width)
+	return truncLines(fit(lipgloss.JoinVertical(lipgloss.Left, frameLines...), width), height)
 }
 
 func (m Model) renderDetailView() string {
@@ -151,8 +160,52 @@ func (m Model) renderDetailView() string {
 		return m.renderDetailLanguages()
 	case DetailSkills:
 		return m.renderDetailSkills()
+	case DetailDaily:
+		return m.renderDetailDaily()
 	default:
 		return ""
+	}
+}
+
+func (m Model) renderDetailDaily() string {
+	d := m.daily
+	title := m.theme.Title.Render("📅 Daily Challenge")
+	backHint := m.theme.Muted.Render("[enter] open  [esc] back")
+
+	head := m.theme.Selected.Render(fmt.Sprintf("#%d  %s", d.ID, d.Title))
+	diffLine := m.difficultyStyle(d.Difficulty).Render(d.Difficulty) +
+		m.theme.Muted.Render("   "+d.Date)
+
+	var topicNames []string
+	for _, t := range d.Topics {
+		topicNames = append(topicNames, t.Name)
+	}
+	rows := []string{
+		head,
+		diffLine,
+		"",
+		m.theme.Muted.Render("Topics: ") + strings.Join(topicNames, ", "),
+		m.theme.Muted.Render("Link:   ") + strings.TrimPrefix(problemURL(d.Slug), "https://"),
+	}
+
+	content := lipgloss.JoinVertical(lipgloss.Left, rows...)
+	panelWidth := clamp(m.width-4, 40, 200)
+	panel := m.theme.panelStyle(panelWidth, true).
+		Render(fit(content, panelWidth-6))
+
+	return lipgloss.JoinVertical(lipgloss.Center, "", title, "", panel, "", backHint)
+}
+
+func (m Model) difficultyStyle(difficulty string) lipgloss.Style {
+	switch difficulty {
+	case "Easy":
+		return m.theme.Easy
+	case "Medium":
+		return m.theme.Medium
+	case "Hard":
+		return m.theme.Hard
+	default:
+		return m.theme.Muted
 	}
 }
 
@@ -303,18 +356,7 @@ func (m Model) renderProblemLine(p domain.Problem, selected bool, idW, titleW, d
 		titleStr = m.theme.Selected.Render(titleStr)
 	}
 
-	var diffStyle lipgloss.Style
-	switch p.Difficulty {
-	case "Easy":
-		diffStyle = m.theme.Easy
-	case "Medium":
-		diffStyle = m.theme.Medium
-	case "Hard":
-		diffStyle = m.theme.Hard
-	default:
-		diffStyle = m.theme.Muted
-	}
-	diffStr := diffStyle.Render(padRight(p.Difficulty, diffW))
+	diffStr := m.difficultyStyle(p.Difficulty).Render(padRight(p.Difficulty, diffW))
 
 	status := "❌"
 	if p.Status == "Solved" {

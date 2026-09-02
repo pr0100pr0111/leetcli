@@ -183,6 +183,62 @@ func TestRunInitCreatesFiles(t *testing.T) {
 	}
 }
 
+func stubFetchDaily(t *testing.T, challenge domain.DailyChallenge, err error) {
+	t.Helper()
+	old := fetchDaily
+	fetchDaily = func(ctx context.Context) (domain.DailyChallenge, error) {
+		return challenge, err
+	}
+	t.Cleanup(func() { fetchDaily = old })
+}
+
+func TestRunInitDaily(t *testing.T) {
+	stubFetch(t)
+	stubFetchDaily(t, domain.DailyChallenge{
+		Date:       "2026-10-07",
+		Slug:       "two-sum",
+		ID:         1,
+		Title:      "Two Sum",
+		Difficulty: "Easy",
+	}, nil)
+	chdir(t)
+
+	out, _, code := capture(t, func() int { return Run([]string{"init", "daily", "--lang", "python3"}) })
+	if code != 0 {
+		t.Fatalf("init daily = %d, want 0", code)
+	}
+	if !strings.Contains(out, "Two Sum") {
+		t.Errorf("stdout = %q", out)
+	}
+	meta, err := os.ReadFile("leetcli.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(meta), `"slug": "two-sum"`) {
+		t.Errorf("leetcli.json = %q", meta)
+	}
+	if _, err := os.Stat("solution.py"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestRunInitDailyFetchError(t *testing.T) {
+	stubFetch(t)
+	stubFetchDaily(t, domain.DailyChallenge{}, errors.New("daily down"))
+	chdir(t)
+
+	_, errOut, code := capture(t, func() int { return Run([]string{"init", "daily"}) })
+	if code != 1 {
+		t.Fatalf("init daily error = %d, want 1", code)
+	}
+	if !strings.Contains(errOut, "daily down") {
+		t.Errorf("stderr = %q", errOut)
+	}
+	if _, err := os.Stat("solution.py"); err == nil {
+		t.Error("no files should be created on daily fetch error")
+	}
+}
+
 func TestRunTestFlow(t *testing.T) {
 	r, ok := runner.For("python")
 	if !ok || !r.Available() {

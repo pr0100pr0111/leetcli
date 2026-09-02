@@ -55,6 +55,14 @@ func runInit(args []string) int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
+	if slug == "daily" {
+		d, err := fetchDaily(ctx)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return 1
+		}
+		slug = d.Slug
+	}
 	detail, err := fetchProblem(ctx, slug)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)

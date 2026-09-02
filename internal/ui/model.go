@@ -29,6 +29,7 @@ const (
 	DetailDifficulty
 	DetailLanguages
 	DetailSkills
+	DetailDaily
 )
 
 type AppView int
@@ -54,6 +55,9 @@ type Model struct {
 	detailView  DetailView
 	showHelp    bool
 	config      config.Config
+
+	dailyOK bool
+	daily   domain.DailyChallenge
 
 	appView             AppView
 	problems            []domain.Problem
@@ -99,13 +103,20 @@ func NewModel(s *service.ProfileService, cfg config.Config) Model {
 }
 
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(m.spinner.Tick, m.fetch())
+	return tea.Batch(m.spinner.Tick, m.fetch(), m.fetchDaily())
 }
 
 func (m Model) fetch() tea.Cmd {
 	return func() tea.Msg {
 		p, err := m.service.GetProfile(context.Background())
 		return profileMsg{p, err}
+	}
+}
+
+func (m Model) fetchDaily() tea.Cmd {
+	return func() tea.Msg {
+		d, err := m.service.GetDailyChallenge(context.Background())
+		return dailyMsg{d, err}
 	}
 }
 
@@ -128,6 +139,11 @@ type problemsMsg struct {
 	err      error
 }
 
+type dailyMsg struct {
+	daily domain.DailyChallenge
+	err   error
+}
+
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
@@ -140,6 +156,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.loading = false
 		m.profile = msg.profile
 		m.err = msg.err
+		return m, nil
+
+	case dailyMsg:
+		if msg.err == nil {
+			m.daily = msg.daily
+			m.dailyOK = true
+		}
 		return m, nil
 
 	case problemsMsg:
@@ -184,7 +207,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		case "r":
 			m.loading = true
-			cmds = append(cmds, m.fetch())
+			cmds = append(cmds, m.fetch(), m.fetchDaily())
+		case "d":
+			if m.detailView == DetailNone && m.dailyOK {
+				m.detailView = DetailDaily
+			}
 		case "t":
 			m.themeIndex = (m.themeIndex + 1) % len(Themes)
 			m.theme = Themes[m.themeIndex]
@@ -211,6 +238,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.detailView = DetailLanguages
 				case PanelSkills:
 					m.detailView = DetailSkills
+				}
+			} else if m.detailView == DetailDaily {
+				if m.daily.Slug != "" {
+					return m, openBrowser(problemURL(m.daily.Slug))
 				}
 			} else {
 				m.detailView = DetailNone

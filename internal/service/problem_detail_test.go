@@ -201,3 +201,36 @@ func TestParseSignature_InvalidJSON(t *testing.T) {
 		t.Errorf("invalid metaData should yield empty signature, got %+v", sig)
 	}
 }
+
+func TestParseSignature_ListNotation(t *testing.T) {
+	sig := parseSignature(`{"name":"removeInvalidParentheses","params":[{"name":"s","type":"string"},{"name":"seen","type":"map<string, boolean>"}],"return":{"type":"list<string>"}}`)
+	if sig.Name != "removeInvalidParentheses" {
+		t.Errorf("Name = %q", sig.Name)
+	}
+	if sig.Return != "string[]" {
+		t.Errorf("Return = %q, want %q", sig.Return, "string[]")
+	}
+	if sig.Params[0].Type != "string" {
+		t.Errorf("param[0].Type = %q", sig.Params[0].Type)
+	}
+	if sig.Params[1].Type != "map<string, boolean>" {
+		t.Errorf("param[1].Type = %q", sig.Params[1].Type)
+	}
+}
+
+func TestNormalizeType(t *testing.T) {
+	cases := map[string]string{
+		"list<string>":        "string[]",
+		"list<integer>":       "integer[]",
+		"list<list<integer>>": "integer[][]",
+		"integer[]":           "integer[]",
+		"string":              "string",
+		" ListNode ":          "ListNode",
+		"map<string, bool>":   "map<string, bool>",
+	}
+	for in, want := range cases {
+		if got := normalizeType(in); got != want {
+			t.Errorf("normalizeType(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

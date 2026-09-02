@@ -18,6 +18,8 @@ type mockClient struct {
 	detailResponse   []byte
 	detailErr        error
 	detailSlug       string
+	dailyResponse    []byte
+	dailyErr         error
 }
 
 func (m *mockClient) FetchProfile(ctx context.Context, username string) ([]byte, error) {
@@ -39,6 +41,13 @@ func (m *mockClient) FetchProblemDetail(ctx context.Context, titleSlug string) (
 	}
 	m.detailSlug = titleSlug
 	return m.detailResponse, nil
+}
+
+func (m *mockClient) FetchDailyChallenge(ctx context.Context) ([]byte, error) {
+	if m.dailyErr != nil {
+		return nil, m.dailyErr
+	}
+	return m.dailyResponse, nil
 }
 
 func TestProfileService_GetProfile(t *testing.T) {
