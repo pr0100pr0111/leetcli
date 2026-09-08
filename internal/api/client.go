@@ -93,7 +93,7 @@ func (c *Client) FetchProblems(ctx context.Context, limit, skip int) ([]byte, er
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	return io.ReadAll(resp.Body)
 }
@@ -111,7 +111,7 @@ func (c *Client) doQuery(ctx context.Context, query string, variables map[string
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	return io.ReadAll(resp.Body)
 }

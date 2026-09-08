@@ -253,7 +253,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.activePanel = (m.activePanel - 1 + PanelCount) % PanelCount
 			}
 		case "enter":
-			if m.detailView == DetailNone {
+			switch m.detailView {
+			case DetailNone:
 				switch m.activePanel {
 				case PanelDifficulty:
 					m.detailView = DetailDifficulty
@@ -264,11 +265,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				case PanelContests:
 					m.detailView = DetailContests
 				}
-			} else if m.detailView == DetailDaily {
+			case DetailDaily:
 				if m.daily.Slug != "" {
 					return m, openBrowser(problemURL(m.daily.Slug))
 				}
-			} else {
+			default:
 				m.detailView = DetailNone
 			}
 		case "esc":
@@ -504,9 +505,4 @@ func (m Model) pageSize() int {
 		p = 1
 	}
 	return p
-}
-
-func (m Model) nextTheme() Theme {
-	m.themeIndex = (m.themeIndex + 1) % len(Themes)
-	return Themes[m.themeIndex]
 }

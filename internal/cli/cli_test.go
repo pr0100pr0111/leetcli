@@ -64,7 +64,11 @@ func chdir(t *testing.T) {
 	if err := os.Chdir(dir); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { os.Chdir(old) })
+	t.Cleanup(func() {
+		if err := os.Chdir(old); err != nil {
+			t.Errorf("restore working dir: %v", err)
+		}
+	})
 }
 
 func capture(t *testing.T, fn func() int) (string, string, int) {
@@ -81,8 +85,8 @@ func capture(t *testing.T, fn func() int) (string, string, int) {
 	os.Stdout, os.Stderr = ow, ew
 	code := fn()
 	os.Stdout, os.Stderr = oldOut, oldErr
-	ow.Close()
-	ew.Close()
+	_ = ow.Close()
+	_ = ew.Close()
 	out, _ := io.ReadAll(or)
 	errOut, _ := io.ReadAll(er)
 	return string(out), string(errOut), code

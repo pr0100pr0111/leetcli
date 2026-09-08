@@ -223,7 +223,7 @@ func runTask(ctx context.Context, r Runner, task Task, workDir string) ([]Result
 		if err != nil {
 			return nil, err
 		}
-		defer os.RemoveAll(dir)
+		defer func() { _ = os.RemoveAll(dir) }()
 	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, err
