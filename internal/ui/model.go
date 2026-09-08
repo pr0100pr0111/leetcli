@@ -30,6 +30,7 @@ const (
 	DetailLanguages
 	DetailSkills
 	DetailDaily
+	DetailContests
 )
 
 type AppView int
@@ -58,6 +59,9 @@ type Model struct {
 
 	dailyOK bool
 	daily   domain.DailyChallenge
+
+	contestsOK bool
+	contests   domain.ContestHistory
 
 	appView             AppView
 	problems            []domain.Problem
@@ -103,7 +107,7 @@ func NewModel(s *service.ProfileService, cfg config.Config) Model {
 }
 
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(m.spinner.Tick, m.fetch(), m.fetchDaily())
+	return tea.Batch(m.spinner.Tick, m.fetch(), m.fetchDaily(), m.fetchContests())
 }
 
 func (m Model) fetch() tea.Cmd {
@@ -117,6 +121,13 @@ func (m Model) fetchDaily() tea.Cmd {
 	return func() tea.Msg {
 		d, err := m.service.GetDailyChallenge(context.Background())
 		return dailyMsg{d, err}
+	}
+}
+
+func (m Model) fetchContests() tea.Cmd {
+	return func() tea.Msg {
+		h, err := m.service.GetContests(context.Background())
+		return contestsMsg{h, err}
 	}
 }
 
@@ -144,6 +155,11 @@ type dailyMsg struct {
 	err   error
 }
 
+type contestsMsg struct {
+	history domain.ContestHistory
+	err     error
+}
+
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
@@ -162,6 +178,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err == nil {
 			m.daily = msg.daily
 			m.dailyOK = true
+		}
+		return m, nil
+
+	case contestsMsg:
+		if msg.err == nil {
+			m.contests = msg.history
+			m.contestsOK = true
 		}
 		return m, nil
 
@@ -207,7 +230,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		case "r":
 			m.loading = true
-			cmds = append(cmds, m.fetch(), m.fetchDaily())
+			cmds = append(cmds, m.fetch(), m.fetchDaily(), m.fetchContests())
 		case "d":
 			if m.detailView == DetailNone && m.dailyOK {
 				m.detailView = DetailDaily
@@ -238,6 +261,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.detailView = DetailLanguages
 				case PanelSkills:
 					m.detailView = DetailSkills
+				case PanelContests:
+					m.detailView = DetailContests
 				}
 			} else if m.detailView == DetailDaily {
 				if m.daily.Slug != "" {

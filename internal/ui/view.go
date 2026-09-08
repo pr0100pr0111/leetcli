@@ -103,6 +103,9 @@ func (m Model) View() string {
 			m.theme.Title.Render(m.daily.Title)+" "+
 			m.difficultyStyle(m.daily.Difficulty).Render("("+m.daily.Difficulty+")"))
 	}
+	if m.contestsOK || m.activePanel == PanelContests {
+		frameLines = append(frameLines, m.renderContestsLine())
+	}
 
 	renderContents := func(bw int) (string, string, string) {
 		return renderDifficulty(m, bw),
@@ -162,6 +165,8 @@ func (m Model) renderDetailView() string {
 		return m.renderDetailSkills()
 	case DetailDaily:
 		return m.renderDetailDaily()
+	case DetailContests:
+		return m.renderDetailContests()
 	default:
 		return ""
 	}
@@ -194,6 +199,187 @@ func (m Model) renderDetailDaily() string {
 		Render(fit(content, panelWidth-6))
 
 	return lipgloss.JoinVertical(lipgloss.Center, "", title, "", panel, "", backHint)
+}
+
+func (m Model) renderContestsLine() string {
+	labelStyle := m.theme.Muted
+	if m.activePanel == PanelContests {
+		labelStyle = m.theme.Selected
+	}
+
+	var body string
+	switch {
+	case !m.contestsOK:
+		body = m.theme.Muted.Render("unavailable")
+	case m.contests.HasRating:
+		body = m.theme.Accent.Render(fmt.Sprintf("%.1f", m.contests.Rating)) + " rating" +
+			m.theme.Muted.Render("  •  top ") + fmt.Sprintf("%.1f%%", m.contests.TopPercent) +
+			m.theme.Muted.Render("  •  ") + strconv.Itoa(m.contests.AttendedCount()) + " attended"
+	case len(m.contests.Results) > 0:
+		body = strconv.Itoa(m.contests.AttendedCount()) + " contests attended"
+	default:
+		body = m.theme.Muted.Render("no contests yet")
+	}
+
+	return labelStyle.Render("Contests") + "  " + body
+}
+
+func (m Model) renderDetailContests() string {
+	title := m.theme.Title.Render("🏆 Contest History")
+	backHint := m.theme.Muted.Render("[esc] back")
+	panelWidth := clamp(m.width-4, 40, 200)
+	contentW := panelWidth - 6
+
+	emptyPanel := func(msg string) string {
+		panel := m.theme.panelStyle(panelWidth, true).Render(fit(m.theme.Muted.Render(msg), contentW))
+		return lipgloss.JoinVertical(lipgloss.Center, "", title, "", panel, "", backHint)
+	}
+
+	if !m.contestsOK {
+		return emptyPanel("Contest history is unavailable")
+	}
+	c := m.contests
+	if !c.HasRating && len(c.Results) == 0 {
+		return emptyPanel("No contests yet")
+	}
+
+	var stats []string
+	if c.HasRating {
+		stats = append(stats, m.theme.Muted.Render("Rating ")+m.theme.Accent.Render(fmt.Sprintf("%.1f", c.Rating)))
+		stats = append(stats, m.theme.Muted.Render("Top ")+fmt.Sprintf("%.1f%%", c.TopPercent))
+	}
+	stats = append(stats, m.theme.Muted.Render("Attended ")+strconv.Itoa(c.AttendedCount()))
+	statsLine := strings.Join(stats, m.theme.Muted.Render("   •   "))
+
+	chartPanel := m.theme.panelStyle(panelWidth, true).
+		Render(fit(m.renderRatingChart(c, contentW), contentW))
+
+	listRows := clamp(m.height-24, 3, 15)
+	listPanel := m.theme.panelStyle(panelWidth, true).
+		Render(fit(m.renderContestList(c, contentW, listRows), contentW))
+
+	return lipgloss.JoinVertical(lipgloss.Center,
+		"", title, "", statsLine, "", chartPanel, "", listPanel, "", backHint)
+}
+
+func (m Model) renderRatingChart(c domain.ContestHistory, width int) string {
+	if len(c.Results) == 0 {
+		return m.theme.Muted.Render("No contests to plot")
+	}
+
+	results := c.Results
+	truncated := false
+	if len(results) > width {
+		results = results[len(results)-width:]
+		truncated = true
+	}
+
+	minR, maxR := 0.0, 0.0
+	first := true
+	for _, r := range results {
+		if !r.HasRating {
+			continue
+		}
+		if first {
+			minR, maxR, first = r.Rating, r.Rating, false
+			continue
+		}
+		if r.Rating < minR {
+			minR = r.Rating
+		}
+		if r.Rating > maxR {
+			maxR = r.Rating
+		}
+	}
+	if first {
+		return m.theme.Muted.Render("No ratings to plot")
+	}
+
+	const chartH = 7
+	levels := make([]int, len(results))
+	for i, r := range results {
+		if !r.HasRating {
+			continue
+		}
+		if maxR > minR {
+			levels[i] = 1 + int((r.Rating-minR)/(maxR-minR)*float64(chartH-1)+0.5)
+		} else {
+			levels[i] = chartH
+		}
+	}
+
+	lines := []string{m.theme.Muted.Render(fmt.Sprintf("max %.1f   min %.1f", maxR, minR))}
+	for row := chartH - 1; row >= 0; row-- {
+		var b strings.Builder
+		for _, lv := range levels {
+			if lv > row {
+				b.WriteString("█")
+			} else {
+				b.WriteString(" ")
+			}
+		}
+		lines = append(lines, m.theme.Accent.Render(b.String()))
+	}
+
+	dates := results[0].Time.Format("2006-01-02")
+	if last := results[len(results)-1].Time.Format("2006-01-02"); last != dates {
+		dates += " → " + last
+	}
+	if truncated {
+		dates += fmt.Sprintf("   (last %d)", len(results))
+	}
+	lines = append(lines, m.theme.Muted.Render(dates))
+
+	return lipgloss.JoinVertical(lipgloss.Left, lines...)
+}
+
+func (m Model) renderContestList(c domain.ContestHistory, width, maxRows int) string {
+	if len(c.Results) == 0 {
+		return m.theme.Muted.Render("No contests attended")
+	}
+
+	titleW := width - 29
+	if titleW < 4 {
+		titleW = 4
+	}
+
+	var shown []domain.ContestResult
+	for i := len(c.Results) - 1; i >= 0 && len(shown) < maxRows; i-- {
+		shown = append(shown, c.Results[i])
+	}
+	more := len(c.Results) - len(shown)
+
+	var lines []string
+	for _, r := range shown {
+		dateStr := m.theme.Muted.Render(padRight(r.Time.Format("2006-01-02"), 10))
+
+		rankStr := "      —"
+		if r.Ranking > 0 {
+			rankStr = fmt.Sprintf("#%-6d", r.Ranking)
+		}
+		ratingStr := "     —"
+		if r.HasRating {
+			ratingStr = fmt.Sprintf("%6.1f", r.Rating)
+		}
+
+		var titleStr, rankStyled, ratingStyled string
+		if r.Attended && r.HasRating {
+			titleStr = padRight(trunc(r.Title, titleW), titleW)
+			rankStyled = m.theme.Muted.Render(rankStr)
+			ratingStyled = m.theme.Accent.Render(ratingStr)
+		} else {
+			titleStr = m.theme.Muted.Render(padRight(trunc(r.Title, titleW), titleW))
+			rankStyled = m.theme.Muted.Render(rankStr)
+			ratingStyled = m.theme.Muted.Render(ratingStr)
+		}
+
+		lines = append(lines, dateStr+"  "+titleStr+"  "+rankStyled+"  "+ratingStyled)
+	}
+	if more > 0 {
+		lines = append(lines, m.theme.Muted.Render(fmt.Sprintf("… %d more", more)))
+	}
+
+	return lipgloss.JoinVertical(lipgloss.Left, lines...)
 }
 
 func (m Model) difficultyStyle(difficulty string) lipgloss.Style {

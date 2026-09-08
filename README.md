@@ -9,6 +9,7 @@ A polished terminal dashboard for your LeetCode profile, plus a local test runne
 - **Language statistics** — Top languages by problems solved
 - **Skills/Tags breakdown** — All problem tags with solve counts
 - **Streak tracking** — Current daily streak
+- **Contest History** — rating graph and per-contest results (Tab to the Contests line, `Enter` opens the history)
 - **5 built-in themes**: Default, Dracula, Nord, Tokyo Night, Catppuccin
 - **Keyboard navigation** — Tab/arrows to switch panels, `t` to cycle themes
 - **Problem filter** — `/` live search by title, slug or ID in the Problem Browser
@@ -76,7 +77,7 @@ Current limitations (v1):
 | `h` / `?` | Toggle help |
 | `b` | Problem Browser |
 | `d` | Daily Challenge detail view (`enter` open in browser, `esc` back) |
-| `Enter` | Open detail view / open problem in browser |
+| `Enter` | Open detail view (difficulty / languages / skills / contests) / open problem in browser |
 | `Esc` | Close detail view |
 | `j` / `k` | Move in Problem Browser |
 | `[` / `]` | Prev / next page in Problem Browser |
@@ -118,7 +119,7 @@ Hard     ████              10%   20    JavaScript ██████    
 leetcli/
 ├── main.go                      # Entry point (TUI or CLI subcommand)
 ├── internal/
-│   ├── api/                     # GraphQL HTTP clients (profile, problem detail)
+│   ├── api/                     # GraphQL HTTP clients (profile, problems, contests, daily)
 │   ├── config/config.go         # YAML config loader
 │   ├── domain/                  # Domain models
 │   ├── service/                 # Business logic + statement parsing
@@ -135,7 +136,7 @@ leetcli/
 - [x] Problem Browser (list, pagination, open in browser)
 - [x] Local test runner (`leetcli init` / `leetcli test`, Go/Python/JS/C++)
 - [x] Daily Challenge (`d` detail view, `leetcli init daily`)
-- [ ] Contest History with rating graph
+- [x] Contest History with rating graph (stats, chart, recent contests)
 - [ ] Export PNG/JSON
 - [ ] GitHub Action for README stats
 - [ ] Local problem cache + more test languages (Java, Rust)

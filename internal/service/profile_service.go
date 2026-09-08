@@ -14,6 +14,7 @@ type ProfileFetcher interface {
 	FetchProblems(ctx context.Context, limit, skip int) ([]byte, error)
 	FetchProblemDetail(ctx context.Context, titleSlug string) ([]byte, error)
 	FetchDailyChallenge(ctx context.Context) ([]byte, error)
+	FetchContests(ctx context.Context, username string) ([]byte, error)
 }
 
 type ProfileService struct {
